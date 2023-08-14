@@ -12,11 +12,13 @@ from dotenv import load_dotenv
 
 # SQLAlchemy related
 from sqlalchemy import (
-    create_engine, Table, Column, Integer, String, MetaData, Float, inspect
+    create_engine, Table, Column, Integer, String, MetaData, Float, inspect, func, select
 )
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL
 from contextlib import contextmanager
+
+
 
 start_time = time.time()
 
@@ -48,6 +50,11 @@ conn_str = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USERNAME} p
 try:
     conn = psycopg2.connect(conn_str)
     cur = conn.cursor()
+
+    # Count the rows before the insertion
+    cur.execute("SELECT COUNT(*) FROM publishes;")
+    initial_count = cur.fetchone()[0]
+
     cur.execute("SELECT version();")
     version = cur.fetchone()
     print(f"Connected to - {version[0]}")
@@ -134,7 +141,16 @@ upsert_statement = insert_statement.on_conflict_do_update(
 
 with session_scope(engine) as conn:
     conn.execute(upsert_statement)
-    print(f"Inserted {len(postgres_data)} rows.")
+
+    # Count the rows after the insertion using SQLAlchemy
+    final_count_query = select([func.count()]).select_from(publish_table)
+    final_count = conn.execute(final_count_query).scalar()
+
+    # Calculate the number of inserted rows
+    inserted_rows = final_count - initial_count
+
+    print(f"Inserted {inserted_rows} rows.")
+
 
 end_time = time.time()
 elapsed_time = end_time - start_time

@@ -78,10 +78,6 @@ publish_table = Table(
 )
 
 
-def table_exists(engine, table_name):
-    return engine.dialect.has_table(engine.connect(), table_name)
-
-
 # Create inspector for the engine
 inspector = inspect(engine)
 
