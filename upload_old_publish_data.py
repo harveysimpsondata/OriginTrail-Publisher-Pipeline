@@ -19,7 +19,6 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL
 from contextlib import contextmanager
 
-start_time = time.time()
 
 os.environ['SQLALCHEMY_SILENCE_UBER_WARNING'] = '1'
 os.environ['SQLALCHEMY_WARN_20'] = '1'
