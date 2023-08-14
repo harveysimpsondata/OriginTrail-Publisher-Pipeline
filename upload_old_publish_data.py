@@ -3,6 +3,7 @@ import time
 import os
 import datetime
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 # Third-party libraries
 import pandas as pd
@@ -118,9 +119,12 @@ pubber_list = df['holder'].tolist()
 
 postgres_data = []
 
-for pubber in pubber_list:
+
+def fetch_pubber_data(pubber):
+    local_postgres_data = []
     page = 0
-    while True:  # Start an indefinite loop
+    while True:
+
         url = "https://origintrail.api.subscan.io/api/scan/evm/erc20/transfer"
         headers = {
             "Content-Type": "application/json",
@@ -149,7 +153,7 @@ for pubber in pubber_list:
                 columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
                   .astype({'hash': str, 'symbol': str, 'pubber': str, 'create_at': 'datetime64[ns]'}))
 
-            postgres_data.extend(df.to_dict(orient='records'))
+            local_postgres_data.extend(df.to_dict(orient='records'))
             print(f"Publisher's Transactions Added! -> Address: {pubber}")
 
         except (KeyError, requests.RequestException) as e:  # Catch errors that may arise
@@ -157,3 +161,26 @@ for pubber in pubber_list:
             break  # Exit the loop if an error arises or adjust as necessary
 
         page += 1  # Increment the page for the next iteration
+
+    return local_postgres_data
+
+MAX_THREADS = 3  # Adjust as per your requirements.
+
+with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+    results = list(executor.map(fetch_pubber_data, pubber_list))
+
+# Flatten results into postgres_data
+postgres_data = [item for sublist in results for item in sublist]
+
+
+# Upload data to postgres (batch)
+insert_statement = postgresql.insert(publish_table).values(postgres_data)
+
+# if the primary key already exists, update the record
+upsert_statement = insert_statement.on_conflict_do_update(
+    index_elements=['hash', 'create_at'],
+    set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
+
+with session_scope(engine) as conn:
+    conn.execute(upsert_statement)
+    print(f"Inserted {len(postgres_data)} rows.")
