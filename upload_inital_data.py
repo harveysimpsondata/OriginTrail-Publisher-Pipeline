@@ -116,8 +116,6 @@ response = requests.post(url, headers=headers, json=data).json()
 df = pd.DataFrame(response['data']['list'])
 pubber_list = df['holder'].tolist()
 
-postgres_data = []
-
 
 def fetch_pubber_data(pubber):
     local_postgres_data = []
@@ -145,6 +143,7 @@ def fetch_pubber_data(pubber):
             print(response['data']['list'])
             df = (pd.DataFrame(response['data']['list'])
                   .query('symbol == "TRAC"')
+                  .query('to == "0x61bb5f3db740a9cb3451049c5166f319a18927eb"')
                   .assign(pubber=pubber, create_at=lambda x: pd.to_datetime(
                 x['create_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())),
                           value=lambda x: x['value'].astype(float) / 1e18)
