@@ -59,6 +59,7 @@ def extract_data(API_KEY, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
         finally:
             connection.close()
 
+
     sslmode = 'require'
     conn_str = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USERNAME} password={DB_PASSWORD} sslmode={sslmode}"
 
