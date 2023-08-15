@@ -52,18 +52,18 @@ publish_table = Table(
 # Create inspector for the engine
 inspector = inspect(engine)
 
-# Check if the table "publishes" exists in the database
-if "publishes" not in inspector.get_table_names():
-
-    # Create the table if it doesn't exist
-    meta.create_all(engine)
-
-    # Create the hypertable
-    with engine.connect() as conn:
-        try:
-            conn.execute(f"SELECT create_hypertable('{publish_table.name}', 'create_at', migrate_data => True);")
-        except Exception as e:
-            print(f"Error creating hyper table: {e}")
+# # Check if the table "publishes" exists in the database
+# if "publishes" not in inspector.get_table_names():
+#
+#     # Create the table if it doesn't exist
+#     meta.create_all(engine)
+#
+#     # Create the hypertable
+#     with engine.connect() as conn:
+#         try:
+#             conn.execute(f"SELECT create_hypertable('publishes', 'create_at', migrate_data => True);")
+#         except Exception as e:
+#             print(f"Error creating hyper table: {e}")
 
 url = "https://origintrail.api.subscan.io/api/scan/evm/token/holders"
 headers = {
