@@ -77,8 +77,7 @@ def transform_data(data_list):
     for df, pubber in data_list:
         df_transformed = (df.query('symbol == "TRAC"')
                           .query('to == "0x61bb5f3db740a9cb3451049c5166f319a18927eb"')
-                          .assign(pubber=pubber, create_at=lambda x: pd.to_datetime(
-            x['create_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())),
+                          .assign(pubber=pubber, create_at=lambda x: pd.to_datetime(x['create_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())),
                                   value=lambda x: x['value'].astype(float) / 1e18)
                           .drop(columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
                           .astype({'hash': str, 'symbol': str, 'pubber': str, 'create_at': 'datetime64[ns]'}))
