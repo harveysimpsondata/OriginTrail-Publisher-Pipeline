@@ -42,6 +42,7 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
     df = pd.DataFrame(response['data']['list'])
     pubber_list = df['holder'].tolist()
 
+    @task(log_prints=True, retries=3)
     def fetch_pubber_transactions(pubber):
 
         # Get List of Transactions for Each Publishers' Address
