@@ -27,10 +27,7 @@ from sqlalchemy.engine import URL
 @task(log_prints=True, retries=3, cache_key_fn=task_input_hash, cache_expiration=timedelta(days=1))
 def extract_data(pubber_address_url, transactions_url, API_KEY):
 
-
-    MAX_WORKERS = 3  # adjust this based on your system's capabilities
-
-
+    # Get List of Publishers' Addresses
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": API_KEY
@@ -47,7 +44,7 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
 
     def fetch_pubber_transactions(pubber):
 
-
+        # Get List of Transactions for Each Publishers' Address
         headers = {
             "Content-Type": "application/json",
             "X-API-Key": API_KEY
@@ -61,7 +58,10 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
 
         return pd.DataFrame(response['data']['list'])
 
+
     # Use ThreadPoolExecutor to fetch data in parallel
+    MAX_WORKERS = 3  # adjust this based on your system's capabilities
+
     data_list = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         dfs = list(executor.map(fetch_pubber_transactions, pubber_list))

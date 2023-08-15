@@ -35,6 +35,17 @@ DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
+def get_insert_count(conn):
+    # Capture the number of rows inserted by the current session
+    result = conn.execute("""
+        SELECT sum(rows_returned) 
+        FROM pg_stat_statements 
+        WHERE query ILIKE 'INSERT INTO publishes%'
+    """)
+    return result.scalar() or 0
+
+
+
 @contextmanager
 def session_scope(engine):
     """Provide a transactional scope around a series of operations."""
@@ -141,6 +152,7 @@ upsert_statement = insert_statement.on_conflict_do_update(
 
 with session_scope(engine) as conn:
     conn.execute(upsert_statement)
+
 
     # Count the rows after the insertion using SQLAlchemy
     final_count_query = select([func.count()]).select_from(publish_table)
