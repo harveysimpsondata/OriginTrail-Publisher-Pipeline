@@ -21,6 +21,7 @@ from contextlib import contextmanager
 
 from prefect import task, flow
 from prefect.tasks import task_input_hash
+from prefect_sqlalchemy import SqlAlchemyConnector
 
 @task(log_prints=True, retries=3, cache_key_fn=task_input_hash, cache_expiration=timedelta(days=1))
 def extract_data(pubber_address_url, transactions_url, API_KEY):
