@@ -11,7 +11,7 @@ import pandas as pd
 import psycopg2
 import requests
 from dotenv import load_dotenv
-from prefect import flow, task
+from prefect import Flow, task, flow
 from prefect.tasks import task_input_hash
 from prefect_sqlalchemy import SqlAlchemyConnector
 
@@ -25,9 +25,60 @@ from sqlalchemy.engine import URL
 
 
 @task(log_prints=True, retries=3, cache_key_fn=task_input_hash, cache_expiration=timedelta(days=1))
-def extract_data(pubber_address_url, transactions_url, API_KEY):
+def extract_data(API_KEY, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
 
-    # Get List of Publishers' Addresses
+
+    start_time = time.time()
+
+    MAX_WORKERS = 3  # adjust this based on your system's capabilities
+
+    def get_insert_count(conn):
+        # Capture the number of rows inserted by the current session
+        result = conn.execute("""
+            SELECT sum(rows_returned) 
+            FROM pg_stat_statements 
+            WHERE query ILIKE 'INSERT INTO publishes%'
+        """)
+        return result.scalar() or 0
+
+    @contextmanager
+    def session_scope(engine):
+        """Provide a transactional scope around a series of operations."""
+        connection = engine.connect()
+        try:
+            yield connection
+        finally:
+            connection.close()
+
+    sslmode = 'require'
+    conn_str = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USERNAME} password={DB_PASSWORD} sslmode={sslmode}"
+
+
+
+    connection_url = URL.create(
+        drivername="postgresql+pg8000",
+        username=DB_USERNAME,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+    )
+
+    engine = create_engine(connection_url)
+
+    meta = MetaData()
+    publish_table = Table(
+        "publishes", meta,
+        Column("hash", String, primary_key=True),
+        Column("create_at", postgresql.TIMESTAMP, primary_key=True),
+        Column("value", Float),
+        Column("symbol", String),
+        Column("pubber", String)
+    )
+
+    # ... [rest of your table and database setup code]
+
+    url = "https://origintrail.api.subscan.io/api/scan/evm/token/holders"
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": API_KEY
@@ -38,14 +89,12 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
         "page": 0
     }
 
-    response = requests.post(pubber_address_url, headers=headers, json=data).json()
+    response = requests.post(url, headers=headers, json=data).json()
     df = pd.DataFrame(response['data']['list'])
     pubber_list = df['holder'].tolist()
 
-
-    def fetch_pubber_transactions(pubber):
-
-        # Get List of Transactions for Each Publishers' Address
+    def fetch_pubber_data(pubber):
+        url = "https://origintrail.api.subscan.io/api/scan/evm/erc20/transfer"
         headers = {
             "Content-Type": "application/json",
             "X-API-Key": API_KEY
@@ -55,112 +104,54 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
             "row": 40
         }
 
-        response = requests.post(transactions_url, headers=headers, json=data).json()
+        response = requests.post(url, headers=headers, json=data).json()
 
-        return pd.DataFrame(response['data']['list'])
+        df = (pd.DataFrame(response['data']['list'])
+              .query('symbol == "TRAC"')
+              .query('to == "0x61bb5f3db740a9cb3451049c5166f319a18927eb"')
+              .assign(pubber=pubber, create_at=lambda x: pd.to_datetime(
+            x['create_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())),
+                      value=lambda x: x['value'].astype(float) / 1e18)
+              .drop(columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
+              .astype({'hash': str, 'symbol': str, 'pubber': str, 'create_at': 'datetime64[ns]'}))
 
+        return df.to_dict(orient='records'), pubber
 
     # Use ThreadPoolExecutor to fetch data in parallel
-    MAX_WORKERS = 3  # adjust this based on your system's capabilities
-
-    data_list = []
+    postgres_data = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        dfs = list(executor.map(fetch_pubber_transactions, pubber_list))
-        data_list = list(zip(dfs, pubber_list))
+        for data, pub in executor.map(fetch_pubber_data, pubber_list):
+            postgres_data.extend(data)
+            print(f"Publisher's Transactions Added! -> Address: {pub}")
 
-    return data_list
+    # Upload data to postgres (batch)
+    insert_statement = postgresql.insert(publish_table).values(postgres_data)
 
-@task(log_prints=True, retries=3)
-def transform_data(data_list):
-    transformed_data = []
-
-    for df, pubber in data_list:
-        df_transformed = (df.query('symbol == "TRAC"')
-                          .query('to == "0x61bb5f3db740a9cb3451049c5166f319a18927eb"')
-                          .assign(pubber=pubber, create_at=lambda x: pd.to_datetime(x['create_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())),
-                                  value=lambda x: x['value'].astype(float) / 1e18)
-                          .drop(columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
-                          .astype({'hash': str, 'symbol': str, 'pubber': str, 'create_at': 'datetime64[ns]'}))
-
-        transformed_data.extend(df_transformed.to_dict(orient='records'))
-
-    return transformed_data
-@task(log_prints=True, retries=3)
-def load_data(postgres_data):
-    database_block = SqlAlchemyConnector.load("timescale-database")
-
-    with database_block.get_connection(begin=False) as conn:
-
-        # Define the table schema
-        meta = MetaData()
-        publish_table = Table(
-            "publishes", meta,
-            Column("hash", String, primary_key=True),
-            Column("create_at", postgresql.TIMESTAMP, primary_key=True),
-            Column("value", Float),
-            Column("symbol", String),
-            Column("pubber", String)
-        )
-
-        # # Check if the table exists, create it if not, and convert to hypertable
-        # inspector = inspect(conn)
-        # if "publishes" not in inspector.get_table_names():
-        #
-        #     # Create the table
-        #     meta.create_all(conn)
-        #
-        #     # Create the hypertable
-        #     try:
-        #         conn.execute(
-        #             text(f"SELECT create_hypertable('{publish_table.name}', 'create_at', migrate_data => True);"))
-        #     except Exception as e:
-        #         print(f"Error creating hyper table: {e}")
+    # if the primary key already exists, update the record
+    upsert_statement = insert_statement.on_conflict_do_update(
+        index_elements=['hash', 'create_at'],
+        set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
 
 
-        # Count the rows before the insertion using SQLAlchemy
-        initial_count_query = select([func.count()]).select_from(publish_table)
-        initial_count = conn.execute(initial_count_query).scalar()
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Total execution time: {elapsed_time:.2f} seconds")
 
-        def chunk_data(data, batch_size):
-            """Break data into chunks."""
-            for i in range(0, len(data), batch_size):
-                yield data[i:i + batch_size]
 
-        # Upload data to postgres (batch)
-        # Split the transformed data into batches and insert each batch separately
-        for batch in chunk_data(postgres_data, 1000):  # Assuming batch size is 1000; adjust as needed
-            # Upload data to postgres in batches
-            insert_statement = postgresql.insert(publish_table).values(batch)
-
-            # If the primary key already exists, update the record
-            upsert_statement = insert_statement.on_conflict_do_update(
-                index_elements=['hash', 'create_at'],
-                set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']}
-            )
-
-            conn.execute(upsert_statement)
-
-        # Count the rows after the insertion using SQLAlchemy
-        final_count_query = select([func.count()]).select_from(publish_table)
-        final_count = conn.execute(final_count_query).scalar()
-
-        # Calculate the number of inserted rows
-        inserted_rows = final_count - initial_count
-
-        return {"status": "success", "inserted_rows": inserted_rows}
 
 @flow(name="Ingest_Flow")
 def main_flow():
 
     load_dotenv()
     API_KEY = os.getenv("API_KEY")
+    DB_USERNAME = os.getenv("DB_USERNAME")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT")
+    DB_NAME = os.getenv("DB_NAME")
 
-    pubber_address_url = "https://origintrail.api.subscan.io/api/scan/evm/token/holders"
-    transactions_url = "https://origintrail.api.subscan.io/api/scan/evm/erc20/transfer"
-
-    raw_data = extract_data(pubber_address_url, transactions_url, API_KEY)
-    transformed_data = transform_data(raw_data)
-    load_data(transformed_data)
+    extract_data(API_KEY, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME)
 
 if __name__ == "__main__":
+
     main_flow()
