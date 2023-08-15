@@ -42,7 +42,7 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
     df = pd.DataFrame(response['data']['list'])
     pubber_list = df['holder'].tolist()
 
-    @task(log_prints=True, retries=3)
+
     def fetch_pubber_transactions(pubber):
 
         # Get List of Transactions for Each Publishers' Address
@@ -148,27 +148,6 @@ def load_data(postgres_data):
         inserted_rows = final_count - initial_count
 
         return {"status": "success", "inserted_rows": inserted_rows}
-
-def load_data(postgres_data):
-    # ... (rest of the code remains unchanged)
-
-    # Initialize the counter for inserted rows
-    inserted_rows = 0
-
-    # Split the transformed data into batches and insert each batch separately
-    for batch in chunk_data(postgres_data, 1000):  # Assuming batch size is 1000; adjust as needed
-        # Upload data to postgres in batches
-        insert_statement = postgresql.insert(publish_table).values(batch)
-
-        # If the primary key already exists, update the record
-        upsert_statement = insert_statement.on_conflict_do_update(
-            index_elements=['hash', 'create_at'],
-            set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']}
-        )
-
-        conn.execute(upsert_statement)
-
-    # ... (rest of the code remains unchanged)
 
 @flow(name="Ingest_Flow")
 def main_flow():
