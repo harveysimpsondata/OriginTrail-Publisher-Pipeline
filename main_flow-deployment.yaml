@@ -1,0 +1,40 @@
+###
+### A complete description of a Prefect Deployment for flow 'Ingest_Flow'
+###
+name: OriginTrail ETL
+description: null
+version: 37c4d142b07a8ceb51e90c9a1e4cf1eb
+# The work queue that will handle this deployment's runs
+work_queue_name: default
+work_pool_name: null
+tags: []
+parameters: {}
+schedule: null
+is_schedule_active: null
+infra_overrides: {}
+infrastructure:
+  type: process
+  env: {}
+  labels: {}
+  name: null
+  command: null
+  stream_output: true
+  working_dir: null
+  block_type_slug: process
+  _block_type_slug: process
+
+###
+### DO NOT EDIT BELOW THIS LINE
+###
+flow_name: Ingest_Flow
+manifest_path: null
+storage: null
+path: /Users/leesimpson/PycharmProjects/OriginTrail-Publishers
+entrypoint: prefect-etl.py:main_flow
+parameter_openapi_schema:
+  title: Parameters
+  type: object
+  properties: {}
+  required: null
+  definitions: null
+timestamp: '2023-08-15T14:16:51.909307+00:00'
