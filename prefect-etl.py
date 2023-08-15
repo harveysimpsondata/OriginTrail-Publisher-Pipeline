@@ -16,12 +16,17 @@ from sqlalchemy import (
     create_engine, Table, Column, Integer, String, MetaData, Float, inspect, func, select
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import text
 from sqlalchemy.engine import URL
 from contextlib import contextmanager
 
 from prefect import task, flow
 from prefect.tasks import task_input_hash
 from prefect_sqlalchemy import SqlAlchemyConnector
+
+
+
+
 
 @task(log_prints=True, retries=3, cache_key_fn=task_input_hash, cache_expiration=timedelta(days=1))
 def extract_data(pubber_address_url, transactions_url, API_KEY):
@@ -89,68 +94,50 @@ def transform_data(df, pubber):
             .drop(columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
             .astype({'hash': str, 'symbol': str, 'pubber': str, 'create_at': 'datetime64[ns]'}))
 
-
-
 @task(log_prints=True, retries=3)
-def load_data(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
+def load_data(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, postgres_data):
+    database_block = SqlAlchemyConnector.load("timescale-database")
 
-    @contextmanager
-    def session_scope(engine):
-        """Provide a transactional scope around a series of operations."""
-        connection = engine.connect()
-        try:
-            yield connection
-        finally:
-            connection.close()
+    with database_block.get_connection(begin=False) as conn:
 
-    sslmode = 'require'
-    conn_str = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USERNAME} password={DB_PASSWORD} sslmode={sslmode}"
+        # Define the table schema
+        meta = MetaData()
+        publish_table = Table(
+            "publishes", meta,
+            Column("hash", String, primary_key=True),
+            Column("create_at", postgresql.TIMESTAMP, primary_key=True),
+            Column("value", Float),
+            Column("symbol", String),
+            Column("pubber", String)
+        )
 
-    try:
-        conn = psycopg2.connect(conn_str)
-        cur = conn.cursor()
+        # Check if the table exists, create it if not, and convert to hypertable
+        inspector = inspect(conn)
+        if "publishes" not in inspector.get_table_names():
 
-        # Count the rows before the insertion
-        cur.execute("SELECT COUNT(*) FROM publishes;")
-        initial_count = cur.fetchone()[0]
+            # Create the table
+            meta.create_all(conn)
 
-        cur.execute("SELECT version();")
-        version = cur.fetchone()
-        print(f"Connected to - {version[0]}")
-    finally:
-        cur.close()
-        conn.close()
+            # Create the hypertable
+            try:
+                conn.execute(
+                    text(f"SELECT create_hypertable('{publish_table.name}', 'create_at', migrate_data => True);"))
+            except Exception as e:
+                print(f"Error creating hyper table: {e}")
 
-    connection_url = URL.create(
-        drivername="postgresql+pg8000",
-        username=DB_USERNAME,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME,
-    )
 
-    engine = create_engine(connection_url)
+        # Count the rows before the insertion using SQLAlchemy
+        initial_count_query = select([func.count()]).select_from(publish_table)
+        initial_count = conn.execute(initial_count_query).scalar()
 
-    meta = MetaData()
-    publish_table = Table(
-        "publishes", meta,
-        Column("hash", String, primary_key=True),
-        Column("create_at", postgresql.TIMESTAMP, primary_key=True),
-        Column("value", Float),
-        Column("symbol", String),
-        Column("pubber", String)
-    )
+        # Upload data to postgres (batch)
+        insert_statement = postgresql.insert(publish_table).values(postgres_data)
 
-    # Upload data to postgres (batch)
-    insert_statement = postgresql.insert(publish_table).values(postgres_data)
+        # if the primary key already exists, update the record
+        upsert_statement = insert_statement.on_conflict_do_update(
+            index_elements=['hash', 'create_at'],
+            set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
 
-    # if the primary key already exists, update the record
-    upsert_statement = insert_statement.on_conflict_do_update(
-        index_elements=['hash', 'create_at'],
-        set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
-
-    with session_scope(engine) as conn:
         conn.execute(upsert_statement)
 
         # Count the rows after the insertion using SQLAlchemy
@@ -165,6 +152,7 @@ def load_data(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
 
 @flow(name="Ingest_Flow")
 def main_flow():
+
     load_dotenv()
     API_KEY = os.getenv("API_KEY")
     DB_USERNAME = os.getenv("DB_USERNAME")
