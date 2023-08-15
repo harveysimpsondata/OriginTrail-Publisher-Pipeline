@@ -29,7 +29,8 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
 
 
     MAX_WORKERS = 3  # adjust this based on your system's capabilities
-    url = "https://origintrail.api.subscan.io/api/scan/evm/token/holders"
+
+
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": API_KEY
@@ -40,12 +41,14 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
         "page": 0
     }
 
-    response = requests.post(url, headers=headers, json=data).json()
+    response = requests.post(pubber_address_url, headers=headers, json=data).json()
     df = pd.DataFrame(response['data']['list'])
     pubber_list = df['holder'].tolist()
 
     def fetch_pubber_transactions(pubber):
-        url = "https://origintrail.api.subscan.io/api/scan/evm/erc20/transfer"
+
+
+
         headers = {
             "Content-Type": "application/json",
             "X-API-Key": API_KEY
@@ -55,7 +58,7 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
             "row": 40
         }
 
-        response = requests.post(url, headers=headers, json=data).json()
+        response = requests.post(transactions_url, headers=headers, json=data).json()
 
         return pd.DataFrame(response['data']['list'])
 
