@@ -121,15 +121,24 @@ def load_data(postgres_data):
         initial_count_query = select([func.count()]).select_from(publish_table)
         initial_count = conn.execute(initial_count_query).scalar()
 
+        def chunk_data(data, batch_size):
+            """Break data into chunks."""
+            for i in range(0, len(data), batch_size):
+                yield data[i:i + batch_size]
+
         # Upload data to postgres (batch)
-        insert_statement = postgresql.insert(publish_table).values(postgres_data)
+        # Split the transformed data into batches and insert each batch separately
+        for batch in chunk_data(postgres_data, 1000):  # Assuming batch size is 1000; adjust as needed
+            # Upload data to postgres in batches
+            insert_statement = postgresql.insert(publish_table).values(batch)
 
-        # if the primary key already exists, update the record
-        upsert_statement = insert_statement.on_conflict_do_update(
-            index_elements=['hash', 'create_at'],
-            set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
+            # If the primary key already exists, update the record
+            upsert_statement = insert_statement.on_conflict_do_update(
+                index_elements=['hash', 'create_at'],
+                set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']}
+            )
 
-        conn.execute(upsert_statement)
+            conn.execute(upsert_statement)
 
         # Count the rows after the insertion using SQLAlchemy
         final_count_query = select([func.count()]).select_from(publish_table)
@@ -140,6 +149,26 @@ def load_data(postgres_data):
 
         return {"status": "success", "inserted_rows": inserted_rows}
 
+def load_data(postgres_data):
+    # ... (rest of the code remains unchanged)
+
+    # Initialize the counter for inserted rows
+    inserted_rows = 0
+
+    # Split the transformed data into batches and insert each batch separately
+    for batch in chunk_data(postgres_data, 1000):  # Assuming batch size is 1000; adjust as needed
+        # Upload data to postgres in batches
+        insert_statement = postgresql.insert(publish_table).values(batch)
+
+        # If the primary key already exists, update the record
+        upsert_statement = insert_statement.on_conflict_do_update(
+            index_elements=['hash', 'create_at'],
+            set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']}
+        )
+
+        conn.execute(upsert_statement)
+
+    # ... (rest of the code remains unchanged)
 
 @flow(name="Ingest_Flow")
 def main_flow():
