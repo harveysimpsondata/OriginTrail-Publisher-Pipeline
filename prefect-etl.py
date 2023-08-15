@@ -26,10 +26,19 @@ from sqlalchemy.engine import URL
 
 @task(log_prints=True, retries=3, cache_key_fn=task_input_hash, cache_expiration=timedelta(days=1))
 def extract_data(API_KEY, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
-
-
     start_time = time.time()
 
+    os.environ['SQLALCHEMY_SILENCE_UBER_WARNING'] = '1'
+    os.environ['SQLALCHEMY_WARN_20'] = '1'
+
+    load_dotenv()
+
+    API_KEY = os.getenv("API_KEY")
+    DB_USERNAME = os.getenv("DB_USERNAME")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT")
+    DB_NAME = os.getenv("DB_NAME")
     MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
     def get_insert_count(conn):
@@ -53,7 +62,20 @@ def extract_data(API_KEY, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
     sslmode = 'require'
     conn_str = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USERNAME} password={DB_PASSWORD} sslmode={sslmode}"
 
+    try:
+        conn = psycopg2.connect(conn_str)
+        cur = conn.cursor()
 
+        # Count the rows before the insertion
+        cur.execute("SELECT COUNT(*) FROM publishes;")
+        initial_count = cur.fetchone()[0]
+
+        cur.execute("SELECT version();")
+        version = cur.fetchone()
+        print(f"Connected to - {version[0]}")
+    finally:
+        cur.close()
+        conn.close()
 
     connection_url = URL.create(
         drivername="postgresql+pg8000",
@@ -132,12 +154,21 @@ def extract_data(API_KEY, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME):
         index_elements=['hash', 'create_at'],
         set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
 
+    with session_scope(engine) as conn:
+        conn.execute(upsert_statement)
+
+        # Count the rows after the insertion using SQLAlchemy
+        final_count_query = select([func.count()]).select_from(publish_table)
+        final_count = conn.execute(final_count_query).scalar()
+
+        # Calculate the number of inserted rows
+        inserted_rows = final_count - initial_count
+
+        print(f"Inserted {inserted_rows} rows.")
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Total execution time: {elapsed_time:.2f} seconds")
-
-
 
 @flow(name="Ingest_Flow")
 def main_flow():
