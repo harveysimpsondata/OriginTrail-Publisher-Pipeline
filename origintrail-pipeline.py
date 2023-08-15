@@ -18,8 +18,6 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL
 from contextlib import contextmanager
 
-
-
 start_time = time.time()
 
 os.environ['SQLALCHEMY_SILENCE_UBER_WARNING'] = '1'
@@ -35,54 +33,11 @@ DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
-def get_insert_count(conn):
-    # Capture the number of rows inserted by the current session
-    result = conn.execute("""
-        SELECT sum(rows_returned) 
-        FROM pg_stat_statements 
-        WHERE query ILIKE 'INSERT INTO publishes%'
-    """)
-    return result.scalar() or 0
 
+service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@t9zy9d3gd7.f3gykjdpg2.tsdb.cloud.timescale.com:{DB_PORT}/tsdb_transaction?sslmode=require"
 
+engine = create_engine(service_url, pool_size=10, max_overflow=20, pool_timeout=30)
 
-@contextmanager
-def session_scope(engine):
-    """Provide a transactional scope around a series of operations."""
-    connection = engine.connect()
-    try:
-        yield connection
-    finally:
-        connection.close()
-
-sslmode = 'require'
-conn_str = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USERNAME} password={DB_PASSWORD} sslmode={sslmode}"
-
-try:
-    conn = psycopg2.connect(conn_str)
-    cur = conn.cursor()
-
-    # Count the rows before the insertion
-    cur.execute("SELECT COUNT(*) FROM publishes;")
-    initial_count = cur.fetchone()[0]
-
-    cur.execute("SELECT version();")
-    version = cur.fetchone()
-    print(f"Connected to - {version[0]}")
-finally:
-    cur.close()
-    conn.close()
-
-connection_url = URL.create(
-    drivername="postgresql+pg8000",
-    username=DB_USERNAME,
-    password=DB_PASSWORD,
-    host=DB_HOST,
-    port=DB_PORT,
-    database=DB_NAME,
-)
-
-engine = create_engine(connection_url)
 
 meta = MetaData()
 publish_table = Table(
@@ -94,7 +49,21 @@ publish_table = Table(
     Column("pubber", String)
 )
 
-# ... [rest of your table and database setup code]
+# Create inspector for the engine
+inspector = inspect(engine)
+
+# Check if the table "publishes" exists in the database
+if "publishes" not in inspector.get_table_names():
+
+    # Create the table if it doesn't exist
+    meta.create_all(engine)
+
+    # Create the hypertable
+    with engine.connect() as conn:
+        try:
+            conn.execute(f"SELECT create_hypertable('{publish_table.name}', 'create_at', migrate_data => True);")
+        except Exception as e:
+            print(f"Error creating hyper table: {e}")
 
 url = "https://origintrail.api.subscan.io/api/scan/evm/token/holders"
 headers = {
@@ -108,8 +77,10 @@ data = {
 }
 
 response = requests.post(url, headers=headers, json=data).json()
+
 df = pd.DataFrame(response['data']['list'])
 pubber_list = df['holder'].tolist()
+
 
 def fetch_pubber_data(pubber):
     url = "https://origintrail.api.subscan.io/api/scan/evm/erc20/transfer"
@@ -134,6 +105,7 @@ def fetch_pubber_data(pubber):
 
     return df.to_dict(orient='records'), pubber
 
+
 # Use ThreadPoolExecutor to fetch data in parallel
 postgres_data = []
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -143,6 +115,7 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 
 
 # Upload data to postgres (batch)
+# create insert statement
 insert_statement = postgresql.insert(publish_table).values(postgres_data)
 
 # if the primary key already exists, update the record
@@ -150,18 +123,12 @@ upsert_statement = insert_statement.on_conflict_do_update(
     index_elements=['hash', 'create_at'],
     set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
 
-with session_scope(engine) as conn:
-    conn.execute(upsert_statement)
-
-
-    # Count the rows after the insertion using SQLAlchemy
-    final_count_query = select([func.count()]).select_from(publish_table)
-    final_count = conn.execute(final_count_query).scalar()
-
-    # Calculate the number of inserted rows
-    inserted_rows = final_count - initial_count
-
-    print(f"Inserted {inserted_rows} rows.")
+with engine.connect() as conn:
+    try:
+        conn.execute(upsert_statement)
+        print(f"Inserted {len(postgres_data)} rows.")
+    except Exception as e:
+        print(f"Error upserting data: {e}")
 
 
 end_time = time.time()
