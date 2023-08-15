@@ -48,7 +48,6 @@ def extract_data(pubber_address_url, transactions_url, API_KEY):
     def fetch_pubber_transactions(pubber):
 
 
-
         headers = {
             "Content-Type": "application/json",
             "X-API-Key": API_KEY
