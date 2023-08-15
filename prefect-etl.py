@@ -80,8 +80,7 @@ def transform_data(data_list):
                           .assign(pubber=pubber, create_at=lambda x: pd.to_datetime(
             x['create_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())),
                                   value=lambda x: x['value'].astype(float) / 1e18)
-                          .drop(
-            columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
+                          .drop(columns=['contract', 'decimals', 'name', 'from_display', 'to_display', 'token_id', 'to', 'from'])
                           .astype({'hash': str, 'symbol': str, 'pubber': str, 'create_at': 'datetime64[ns]'}))
 
         transformed_data.extend(df_transformed.to_dict(orient='records'))
