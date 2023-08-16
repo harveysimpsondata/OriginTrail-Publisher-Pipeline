@@ -61,7 +61,7 @@ if "publishes" not in inspector.get_table_names():
     # Create the hypertable
     with engine.connect() as conn:
         try:
-            conn.execute(f"SELECT create_hypertable('publishes', 'create_at', migrate_data => True);")
+            conn.execute(f"SELECT create_hypertable('publishes', 'create_at');")
         except Exception as e:
             print(f"Error creating hyper table: {e}")
 
@@ -112,6 +112,8 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     for data, pub in executor.map(fetch_pubber_data, pubber_list):
         postgres_data.extend(data)
         print(f"Publisher's Transactions Added! -> Address: {pub}")
+
+
 
 
 # Upload data to postgres (batch)
