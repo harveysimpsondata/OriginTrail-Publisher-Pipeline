@@ -34,7 +34,7 @@ DB_NAME = os.getenv("DB_NAME")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
 
-service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@t9zy9d3gd7.f3gykjdpg2.tsdb.cloud.timescale.com:{DB_PORT}/tsdb_transaction?sslmode=require"
+service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
 
 engine = create_engine(service_url, pool_size=10, max_overflow=20, pool_timeout=30)
 
