@@ -75,7 +75,7 @@ def fetch_pubber_data(pubber, page):
     }
     data = {
         "address": pubber,
-        "row": 40,
+        "row": 100,
         "page": page
     }
 
