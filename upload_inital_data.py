@@ -136,7 +136,7 @@ def fetch_pubber_data(pubber):
             if not response['data']['list']:
                 break
 
-            print(response['data']['list'])
+
             df = (pd.DataFrame(response['data']['list'])
                   .query('symbol == "TRAC"')
                   .query('to == "0x61bb5f3db740a9cb3451049c5166f319a18927eb"')
