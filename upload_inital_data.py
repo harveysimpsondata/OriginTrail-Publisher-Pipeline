@@ -91,7 +91,7 @@ if "publishes" not in inspector.get_table_names():
     with psycopg2.connect(conn_str) as conn:
         with conn.cursor() as cur:
             try:
-                cur.execute(f"SELECT create_hypertable('{publish_table.name}', 'create_at', migrate_data => True);")
+                cur.execute(f"SELECT create_hypertable('publishes', 'create_at', migrate_data => True);")
             except Exception as e:
                 print(f"Error creating hyper table: {e}")
 
