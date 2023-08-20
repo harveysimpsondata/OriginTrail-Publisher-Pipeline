@@ -119,7 +119,7 @@ def main_flow():
 
     publisher_list = extract_publishing_addresses(API_KEY)
     transactions = fetch_address_transactions(API_KEY, MAX_WORKERS, publisher_list)
-    load_to_postgres(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, transactions)
+    load_to_postgres(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PGBOUNCER_PORT, DB_NAME, transactions)
 
 if __name__ == "__main__":
 
