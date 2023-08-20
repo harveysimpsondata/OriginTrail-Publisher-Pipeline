@@ -113,6 +113,7 @@ def main_flow():
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = os.getenv("DB_PORT")
+    DB_PGBOUNCER_PORT = os.getenv("DB_PGBOUNCER_PORT")
     DB_NAME = os.getenv("DB_NAME")
     MAX_WORKERS = 3
 

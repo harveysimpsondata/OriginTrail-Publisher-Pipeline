@@ -31,10 +31,11 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
+DB_PGBOUNCER_PORT = os.getenv("DB_PGBOUNCER_PORT")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
 
-service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
+service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PGBOUNCER_PORT}/{DB_NAME}?sslmode=require"
 
 engine = create_engine(service_url, pool_size=10, max_overflow=20, pool_timeout=30)
 
