@@ -33,7 +33,6 @@ DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 DB_PGBOUNCER_PORT = os.getenv("DB_PGBOUNCER_PORT")
 DB_PGBOUNCER_HOST = os.getenv("DB_PGBOUNCER_HOST")
-MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
 
 service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_PGBOUNCER_HOST}:{DB_PGBOUNCER_PORT}/{DB_NAME}"
@@ -104,7 +103,7 @@ def fetch_pubber_data(pubber, page):
 
 completed_pubbers = set()
 page = 0
-MAX_WORKERS = 10
+MAX_WORKERS = 2
 
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     while len(completed_pubbers) < len(pubber_list):
