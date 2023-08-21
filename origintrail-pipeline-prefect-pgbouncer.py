@@ -92,9 +92,8 @@ def load_to_postgres(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, postgr
     insert_statement = postgresql.insert(publish_table).values(postgres_data)
 
     # if the primary key already exists, update the record
-    upsert_statement = insert_statement.on_conflict_do_update(
-        index_elements=['hash', 'create_at'],
-        set_={c.key: c for c in insert_statement.excluded if c.key not in ['hash']})
+    upsert_statement = insert_statement.on_conflict_do_nothing(
+        index_elements=['hash', 'create_at'])
 
     with engine.connect() as conn:
         try:
