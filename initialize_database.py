@@ -33,11 +33,9 @@ DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
-
 service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
 
 engine = create_engine(service_url, pool_size=10, max_overflow=20, pool_timeout=30)
-
 
 meta = MetaData()
 publish_table = Table(
@@ -48,7 +46,6 @@ publish_table = Table(
     Column("symbol", String),
     Column("pubber", String)
 )
-
 
 url = "https://origintrail.api.subscan.io/api/scan/evm/token/holders"
 headers = {
@@ -117,13 +114,12 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 with engine.connect() as conn:
                     try:
                         conn.execute(upsert_statement)
-                        print(f"Inserted {len(data)} rows for publisher {pub}.")
+                        print(f"Inserted {len(data)} rows for publisher {pub} at page: {page}.")
                     except Exception as e:
-                        print(f"Error upserting data for publisher {pub}: {e}")
+                        print(f"Error upserting data for publisher {pub} at {page}: {e}")
             if completed_pub:
                 completed_pubbers.add(completed_pub)
         page += 1
-
 
 end_time = time.time()
 elapsed_time = end_time - start_time

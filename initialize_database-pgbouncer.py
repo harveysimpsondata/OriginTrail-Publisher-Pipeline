@@ -119,9 +119,9 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 with engine.connect() as conn:
                     try:
                         conn.execute(upsert_statement)
-                        print(f"Inserted {len(data)} rows for publisher {pub}.")
+                        print(f"Inserted {len(data)} rows for publisher {pub} at page: {page}.")
                     except Exception as e:
-                        print(f"Error upserting data for publisher {pub}: {e}")
+                        print(f"Error upserting data for publisher {pub} at page:{page}: {e}")
             if completed_pub:
                 completed_pubbers.add(completed_pub)
         page += 1

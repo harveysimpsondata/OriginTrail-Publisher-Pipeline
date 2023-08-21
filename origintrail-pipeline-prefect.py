@@ -112,13 +112,12 @@ def main_flow():
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = os.getenv("DB_PORT")
-    DB_PGBOUNCER_PORT = os.getenv("DB_PGBOUNCER_PORT")
     DB_NAME = os.getenv("DB_NAME")
     MAX_WORKERS = 3
 
     publisher_list = extract_publishing_addresses(API_KEY)
     transactions = fetch_address_transactions(API_KEY, MAX_WORKERS, publisher_list)
-    load_to_postgres(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PGBOUNCER_PORT, DB_NAME, transactions)
+    load_to_postgres(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, transactions)
 
 if __name__ == "__main__":
 

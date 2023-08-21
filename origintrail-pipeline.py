@@ -31,14 +31,11 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
-
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
-
 
 service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_HOST}/{DB_NAME}?sslmode=require"
 
 engine = create_engine(service_url, pool_size=10, max_overflow=20, pool_timeout=30)
-
 
 meta = MetaData()
 publish_table = Table(
@@ -106,15 +103,12 @@ def fetch_pubber_data(pubber):
 
     return df.to_dict(orient='records'), pubber
 
-
 # Use ThreadPoolExecutor to fetch data in parallel
 postgres_data = []
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     for data, pub in executor.map(fetch_pubber_data, pubber_list):
         postgres_data.extend(data)
         print(f"Publisher's Transactions Added! -> Address: {pub}")
-
-
 
 
 # Upload data to postgres (batch)
