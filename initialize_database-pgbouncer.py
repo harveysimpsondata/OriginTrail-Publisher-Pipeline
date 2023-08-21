@@ -103,7 +103,7 @@ def fetch_pubber_data(pubber, page):
 
 completed_pubbers = set()
 page = 0
-MAX_WORKERS = 2
+MAX_WORKERS = 2 # adjust this based on your system's capabilities
 
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     while len(completed_pubbers) < len(pubber_list):

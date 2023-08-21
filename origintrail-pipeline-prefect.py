@@ -113,7 +113,7 @@ def main_flow():
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = os.getenv("DB_PORT")
     DB_NAME = os.getenv("DB_NAME")
-    MAX_WORKERS = 3
+    MAX_WORKERS = 3 # adjust this based on your system's capabilities
 
     publisher_list = extract_publishing_addresses(API_KEY)
     transactions = fetch_address_transactions(API_KEY, MAX_WORKERS, publisher_list)
