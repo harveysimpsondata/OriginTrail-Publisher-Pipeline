@@ -115,7 +115,7 @@ def main_flow():
     DB_PGBOUNCER_PORT = os.getenv("DB_PGBOUNCER_PORT")
     DB_PGBOUNCER_HOST = os.getenv("DB_PGBOUNCER_HOST")
     DB_NAME = os.getenv("DB_NAME")
-    MAX_WORKERS = 2
+    MAX_WORKERS = 1
 
     publisher_list = extract_publishing_addresses(API_KEY)
     transactions = fetch_address_transactions(API_KEY, MAX_WORKERS, publisher_list)
