@@ -52,7 +52,7 @@ publish_table = Table(
 )
 
 # Create inspector for the engine
-inspector = inspect(engine)
+inspector = inspect(engine, pool_size=10, max_overflow=20, pool_timeout=30)
 
 # Check if the table "publishes" exists in the database
 if "publishes" not in inspector.get_table_names():

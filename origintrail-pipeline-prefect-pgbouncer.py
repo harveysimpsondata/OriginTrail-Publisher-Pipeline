@@ -75,7 +75,7 @@ def load_to_postgres(DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, postgr
 
     service_url = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-    engine = create_engine(service_url)
+    engine = create_engine(service_url, pool_size=10, max_overflow=20, pool_timeout=30)
 
     meta = MetaData()
     publish_table = Table(
