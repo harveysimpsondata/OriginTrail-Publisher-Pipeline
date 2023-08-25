@@ -4,7 +4,7 @@ import os
 import datetime
 from concurrent.futures import ThreadPoolExecutor
 import json
-import Web3
+from web3 import Web3
 
 # Third-party libraries
 import pandas as pd
@@ -63,6 +63,19 @@ for item in dicts_list:
 
 # Create DataFrame
 df = pd.DataFrame(processed_data)
+
+
+url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
+headers = {
+    "Content-Type": "application/json",
+    "X-API-Key": subscan_key
+}
+data = {
+    "hash": "0xf1b00adf0e336f53f3e746f1e7701b865bf63a333ddda7b2078d83f8ed2fdf35"
+}
+
+response = requests.post(url, headers=headers, json=data).json()
+response
 
 
 
