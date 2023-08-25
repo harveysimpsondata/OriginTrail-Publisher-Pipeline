@@ -14,18 +14,23 @@ from dotenv import load_dotenv
 
 import duckdb
 
+
+load_dotenv()
 subscan_key = os.getenv("subscan_key")
 motherDuck_token = os.getenv("motherDuck_token")
 onfinality_key = os.getenv("onfinality_key")
 subscan_key = os.getenv("subscan_key")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
-with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
-    try:
-        conn.execute(upsert_statement)
-        print(f"Inserted {len(postgres_data)} rows.")
-    except Exception as e:
-        print(f"Error upserting data: {e}")
+# with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
+#     try:
+#
+#         pass
+#         # conn.execute(upsert_statement)
+#         # print(f"Inserted {len(postgres_data)} rows.")
+#     except Exception as e:
+#         pass
+#         # print(f"Error upserting data: {e}")
 
 
 # Connect to the Ethereum node using Websockets
@@ -43,8 +48,8 @@ with open('data/ServiceAgreementV1.json', 'r') as file:
 contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
-# Fetch past ServiceAgreementV1Created events
 
+# Fetch past ServiceAgreementV1Created events
 events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=latest_block)
 
 dicts_list = [dict(event) for event in events_list]
@@ -62,20 +67,50 @@ for item in dicts_list:
     processed_data.append(flattened)
 
 # Create DataFrame
-df = pd.DataFrame(processed_data)
+df_assets = (pd.DataFrame(processed_data)
+      .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
+              startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
+      .drop(columns=['keyword', 'hashFunctionId', 'logIndex', 'transactionIndex'])
+      .rename(columns={"assetContract":"asset_contract", "startTime": "TIME_ASSET_CREATED", "epochsNumber":"EPOCHS_NUMBER","epochLength":"EPOCH_LENGTH","tokenAmount": "TRAC_PRICE", "event":"EVENT","tokenId": "ASSET_ID", "assetContract":"ASSET_CONTRACT", "transactionHash":"TRANSACTION_HASH", "blockHash":"BLOCK_HASH", "blockNumber":"BLOCK_NUMBER", "address":"EVENT_CONTRACT_ADDRESS"}, errors="raise"))
 
 
-url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
-headers = {
-    "Content-Type": "application/json",
-    "X-API-Key": subscan_key
-}
-data = {
-    "hash": "0xf1b00adf0e336f53f3e746f1e7701b865bf63a333ddda7b2078d83f8ed2fdf35"
-}
 
-response = requests.post(url, headers=headers, json=data).json()
-response
+# Get all transaction hashes
+hashes = df_assets['TRANSACTION_HASH'].tolist()
+
+hash_list = []
+
+# Get all transaction hashes
+for hash in hashes:
+    url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": subscan_key
+    }
+    data = {
+        "hash": hash
+    }
+
+    response = requests.post(url, headers=headers, json=data).json()
+
+    if response.get("code") == 0:  # only proceed if the response code indicates success
+        data = response["data"]
+        row = {
+            "message": response["message"],
+            "generated_at": response["generated_at"],
+            "hash": data["hash"],
+            "from": data["from"],
+            "to": data["to"]["address"]
+        }
+        hash_list.append(row)
+
+df_hash = ((pd.DataFrame(hash_list)
+           .assign(generated_at=lambda x: pd.to_datetime(x['generated_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()))))
+           .rename(columns={"message":"MESSAGE","generated_at":"TIME_OF_TRANSACTION","hash":"TRANSACTION_HASH","from":"PUBLISHER_ADDRESS", "to":"SENT_ADDRESS"}, errors="raise"))
+
+df = pd.merge(df_assets, df_hash, on='TRANSACTION_HASH', how='left')
+
+df = df[['MESSAGE', 'ASSET_ID', 'BLOCK_NUMBER', 'TIME_ASSET_CREATED', 'TIME_OF_TRANSACTION', 'TRAC_PRICE', 'EPOCHS_NUMBER', 'EPOCH_LENGTH','PUBLISHER_ADDRESS', 'SENT_ADDRESS', 'TRANSACTION_HASH', 'BLOCK_HASH']]
 
 
 
