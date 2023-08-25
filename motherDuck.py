@@ -14,24 +14,12 @@ from dotenv import load_dotenv
 
 import duckdb
 
-
 load_dotenv()
 subscan_key = os.getenv("subscan_key")
 motherDuck_token = os.getenv("motherDuck_token")
 onfinality_key = os.getenv("onfinality_key")
 subscan_key = os.getenv("subscan_key")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
-
-# with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
-#     try:
-#
-#         pass
-#         # conn.execute(upsert_statement)
-#         # print(f"Inserted {len(postgres_data)} rows.")
-#     except Exception as e:
-#         pass
-#         # print(f"Error upserting data: {e}")
-
 
 # Connect to the Ethereum node using Websockets
 w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={onfinality_key}'))
@@ -50,7 +38,7 @@ contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=latest_block)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=last_block)
 
 dicts_list = [dict(event) for event in events_list]
 
@@ -123,5 +111,16 @@ SELECT * FROM df
 ON CONFLICT (TRANSACTION_HASH)  -- these are the primary or unique keys
 DO NOTHING;
 """)
+
+
+# with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
+#     try:
+#
+#         pass
+#         # conn.execute(upsert_statement)
+#         # print(f"Inserted {len(postgres_data)} rows.")
+#     except Exception as e:
+#         pass
+#         # print(f"Error upserting data: {e}")
 
 
