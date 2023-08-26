@@ -9,16 +9,17 @@ from web3 import Web3
 # Third-party libraries
 import pandas as pd
 import requests
-import psycopg2
 from dotenv import load_dotenv
 
 import duckdb
+
+
+start_time = time.time()
 
 load_dotenv()
 subscan_key = os.getenv("subscan_key")
 motherDuck_token = os.getenv("motherDuck_token")
 onfinality_key = os.getenv("onfinality_key")
-subscan_key = os.getenv("subscan_key")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
 # Connect to the Ethereum node using Websockets
@@ -57,9 +58,10 @@ for item in dicts_list:
 # Create DataFrame
 df_assets = (pd.DataFrame(processed_data)
       .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
+              epochLength=lambda x: x['epochLength'].astype(float) / 86400,
               startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
       .drop(columns=['keyword', 'hashFunctionId', 'logIndex', 'transactionIndex'])
-      .rename(columns={"assetContract":"asset_contract", "startTime": "TIME_ASSET_CREATED", "epochsNumber":"EPOCHS_NUMBER","epochLength":"EPOCH_LENGTH","tokenAmount": "TRAC_PRICE", "event":"EVENT","tokenId": "ASSET_ID", "assetContract":"ASSET_CONTRACT", "transactionHash":"TRANSACTION_HASH", "blockHash":"BLOCK_HASH", "blockNumber":"BLOCK_NUMBER", "address":"EVENT_CONTRACT_ADDRESS"}, errors="raise"))
+      .rename(columns={"assetContract":"asset_contract", "startTime": "TIME_ASSET_CREATED", "epochsNumber":"EPOCHS_NUMBER","epochLength":"EPOCH_LENGTH-(DAYS)","tokenAmount": "TRAC_PRICE", "event":"EVENT","tokenId": "ASSET_ID", "assetContract":"ASSET_CONTRACT", "transactionHash":"TRANSACTION_HASH", "blockHash":"BLOCK_HASH", "blockNumber":"BLOCK_NUMBER", "address":"EVENT_CONTRACT_ADDRESS"}, errors="raise"))
 
 
 
@@ -98,12 +100,12 @@ df_hash = ((pd.DataFrame(hash_list)
 
 df = pd.merge(df_assets, df_hash, on='TRANSACTION_HASH', how='left')
 
-df = df[['MESSAGE', 'ASSET_ID', 'BLOCK_NUMBER', 'TIME_ASSET_CREATED', 'TIME_OF_TRANSACTION', 'TRAC_PRICE', 'EPOCHS_NUMBER', 'EPOCH_LENGTH', 'PUBLISHER_ADDRESS', 'SENT_ADDRESS', 'TRANSACTION_HASH', 'BLOCK_HASH']]
+df = df[['MESSAGE', 'ASSET_ID', 'BLOCK_NUMBER', 'TIME_ASSET_CREATED', 'TIME_OF_TRANSACTION', 'TRAC_PRICE', 'EPOCHS_NUMBER', 'EPOCH_LENGTH-(DAYS)', 'PUBLISHER_ADDRESS', 'SENT_ADDRESS', 'TRANSACTION_HASH', 'BLOCK_HASH']]
 
 
 con = duckdb.connect(database='data/duckDB.db')
 
-con.execute("CREATE TABLE IF NOT EXISTS publishes (MESSAGE VARCHAR(100), ASSET_ID VARCHAR(100), BLOCK_NUMBER INTEGER, TIME_ASSET_CREATED TIMESTAMP, TIME_OF_TRANSACTION TIMESTAMP, TRAC_PRICE FLOAT, EPOCHS_NUMBER INTEGER, EPOCH_LENGTH INTEGER, PUBLISHER_ADDRESS VARCHAR(100), SENT_ADDRESS VARCHAR(100), TRANSACTION_HASH VARCHAR(100) PRIMARY KEY, BLOCK_HASH VARCHAR(100))")
+con.execute("CREATE TABLE IF NOT EXISTS publishes (MESSAGE VARCHAR(100), ASSET_ID VARCHAR(100), BLOCK_NUMBER INTEGER, TIME_ASSET_CREATED TIMESTAMP, TIME_OF_TRANSACTION TIMESTAMP, TRAC_PRICE FLOAT, EPOCHS_NUMBER INTEGER, EPOCH_LENGTH-(DAYS) FLOAT, PUBLISHER_ADDRESS VARCHAR(100), SENT_ADDRESS VARCHAR(100), TRANSACTION_HASH VARCHAR(100) PRIMARY KEY, BLOCK_HASH VARCHAR(100))")
 
 con.execute("""
 INSERT INTO publishes
@@ -111,6 +113,10 @@ SELECT * FROM df
 ON CONFLICT (TRANSACTION_HASH)  -- these are the primary or unique keys
 DO NOTHING;
 """)
+
+end_time = time.time()
+elapsed_time = end_time - start_time
+print(f"Total execution time: {elapsed_time:.2f} seconds")
 
 
 # with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
