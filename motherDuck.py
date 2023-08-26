@@ -30,8 +30,8 @@ start_time = time.time()
 # Connect to the Ethereum node using Websockets
 w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
-latest_block = w3.eth.block_number
-last_blocks = (w3.eth.block_number) - 100
+latest_block = (w3.eth.block_number) - 1
+last_blocks = (w3.eth.block_number) - 10
 
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
@@ -42,7 +42,7 @@ contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122367)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_blocks, toBlock=latest_block)
 
 if len(events_list) > 0:
     processed_events = [{
@@ -143,6 +143,14 @@ df = df[['MESSAGE',
 
 
 con = duckdb.connect(database='data/duckDB.db')
+
+result = con.execute("SELECT MAX(BLOCK_NUMBER) AS max_block FROM publishes").fetchone()
+
+if result:
+    max_block_number = result[0]
+    print(f"The maximum block number in the database is: {max_block_number}")
+else:
+    print("Couldn't retrieve the maximum block number.")
 
 con.execute("""
     CREATE TABLE IF NOT EXISTS publishes 
