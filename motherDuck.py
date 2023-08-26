@@ -42,7 +42,7 @@ contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122367)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122387)
 
 if len(events_list) > 0:
     processed_events = [{

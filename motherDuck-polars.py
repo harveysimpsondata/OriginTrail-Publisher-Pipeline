@@ -25,7 +25,6 @@ MOTHERDUCK_KEY = os.getenv("motherDuck_token")
 ONFINALITY_KEY = os.getenv("onfinality_key")
 MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
-
 start_time = time.time()
 # Connect to the Ethereum node using Websockets
 w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
@@ -42,7 +41,7 @@ contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122367)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122387)
 
 if len(events_list) > 0:
     processed_events = [{
@@ -64,23 +63,26 @@ else:
 
 
 # Create DataFrame using polars
-df_assets = (pl.DataFrame(processed_events)
-      .with_columns((pl.col("tokenAmount") / 1e18).alias("tokenAmount"))
-      .with_columns((pl.col("epochLength") / 86400).alias("epochLength"))
-      .with_columns(pl.col("startTime").apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("startTime"))
-      .select([
-          pl.col("assetContract").alias("ASSET_CONTRACT"),
-          pl.col("startTime").alias("TIME_ASSET_CREATED"),
-          pl.col("epochsNumber").alias("EPOCHS_NUMBER"),
-          pl.col("epochLength").alias("EPOCH_LENGTH-(DAYS)"),
-          pl.col("tokenAmount").alias("TRAC_PRICE"),
-          pl.col("event").alias("EVENT"),
-          pl.col("tokenId").alias("ASSET_ID"),
-          pl.col("transactionHash").alias("TRANSACTION_HASH"),
-          pl.col("blockHash").alias("BLOCK_HASH"),
-          pl.col("blockNumber").alias("BLOCK_NUMBER"),
-          pl.col("address").alias("EVENT_CONTRACT_ADDRESS")
-      ]))
+df_assets = (
+    pl.DataFrame(processed_events)
+    .with_columns([
+        (pl.col("tokenAmount") / 1e18).alias("tokenAmount"),
+        (pl.col("epochLength") / 86400).alias("epochLength"),
+        pl.col("startTime").apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("startTime")
+    ])
+    .select([
+        pl.col("assetContract").alias("ASSET_CONTRACT"),
+        pl.col("startTime").alias("TIME_ASSET_CREATED"),
+        pl.col("epochsNumber").alias("EPOCHS_NUMBER"),
+        pl.col("epochLength").alias("EPOCH_LENGTH-(DAYS)"),
+        pl.col("tokenAmount").alias("TRAC_PRICE"),
+        pl.col("event").alias("EVENT"),
+        pl.col("tokenId").alias("ASSET_ID"),
+        pl.col("transactionHash").alias("TRANSACTION_HASH"),
+        pl.col("blockHash").alias("BLOCK_HASH"),
+        pl.col("blockNumber").alias("BLOCK_NUMBER"),
+        pl.col("address").alias("EVENT_CONTRACT_ADDRESS")
+    ]))
 
 
 
