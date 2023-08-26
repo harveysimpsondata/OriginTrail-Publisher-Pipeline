@@ -31,7 +31,7 @@ start_time = time.time()
 w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
 latest_block = w3.eth.block_number
-last_block = (w3.eth.block_number) - 1
+last_blocks = (w3.eth.block_number) - 100
 
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
@@ -42,7 +42,7 @@ contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=last_block)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_blocks, toBlock=latest_block)
 
 if len(events_list) > 0:
     processed_events = [{
@@ -68,7 +68,7 @@ df_assets = (pd.DataFrame(processed_events)
       .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
               epochLength=lambda x: x['epochLength'].astype(float) / 86400,
               startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
-      .rename(columns={"assetContract":"asset_contract",
+      .rename(columns={"assetContract":"ASSET_CONTRACT",
                        "startTime": "TIME_ASSET_CREATED",
                        "epochsNumber":"EPOCHS_NUMBER",
                        "epochLength":"EPOCH_LENGTH-(DAYS)",
@@ -110,6 +110,9 @@ def fetch_transaction_data(hash):
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     hash_list = list(executor.map(fetch_transaction_data, hashes))
 
+# Filter out any None values from the hash_list
+hash_list = [h for h in hash_list if h is not None]
+
 df_hash = ((pd.DataFrame(hash_list)
             .assign(generated_at=lambda x: pd.to_datetime(x['generated_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()))))
             .rename(columns={"message":"MESSAGE",
@@ -120,6 +123,9 @@ df_hash = ((pd.DataFrame(hash_list)
                     errors="raise"))
 
 df = pd.merge(df_assets, df_hash, on='TRANSACTION_HASH', how='left')
+
+# Filter rows based on the MESSAGE column
+df = df[df['MESSAGE'] == 'Success']
 
 df = df[['MESSAGE',
          'ASSET_ID',
