@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 # Third-party imports
 from dotenv import load_dotenv
 import duckdb
-import pandas as pd
+import polars as pl
 import requests
 from web3 import Web3
 
@@ -63,29 +63,29 @@ else:
     sys.exit()  # Exit the program
 
 
-# Create DataFrame
-df_assets = (pd.DataFrame(processed_events)
-      .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
-              epochLength=lambda x: x['epochLength'].astype(float) / 86400,
-              startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
-      .rename(columns={"assetContract":"ASSET_CONTRACT",
-                       "startTime": "TIME_ASSET_CREATED",
-                       "epochsNumber":"EPOCHS_NUMBER",
-                       "epochLength":"EPOCH_LENGTH-(DAYS)",
-                       "tokenAmount": "TRAC_PRICE",
-                       "event":"EVENT",
-                       "tokenId": "ASSET_ID",
-                       "assetContract":"ASSET_CONTRACT",
-                       "transactionHash":"TRANSACTION_HASH",
-                       "blockHash":"BLOCK_HASH",
-                       "blockNumber":"BLOCK_NUMBER",
-                       "address":"EVENT_CONTRACT_ADDRESS"},
-              errors="raise"))
+# Create DataFrame using polars
+df_assets = (pl.DataFrame(processed_events)
+      .with_columns((pl.col("tokenAmount") / 1e18).alias("tokenAmount"))
+      .with_columns((pl.col("epochLength") / 86400).alias("epochLength"))
+      .with_columns(pl.col("startTime").apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("startTime"))
+      .select([
+          pl.col("assetContract").alias("ASSET_CONTRACT"),
+          pl.col("startTime").alias("TIME_ASSET_CREATED"),
+          pl.col("epochsNumber").alias("EPOCHS_NUMBER"),
+          pl.col("epochLength").alias("EPOCH_LENGTH-(DAYS)"),
+          pl.col("tokenAmount").alias("TRAC_PRICE"),
+          pl.col("event").alias("EVENT"),
+          pl.col("tokenId").alias("ASSET_ID"),
+          pl.col("transactionHash").alias("TRANSACTION_HASH"),
+          pl.col("blockHash").alias("BLOCK_HASH"),
+          pl.col("blockNumber").alias("BLOCK_NUMBER"),
+          pl.col("address").alias("EVENT_CONTRACT_ADDRESS")
+      ]))
 
 
 
 # Get all transaction hashes
-hashes = df_assets['TRANSACTION_HASH'].tolist()
+hashes = df_assets['TRANSACTION_HASH'].to_list()
 
 def fetch_transaction_data(hash):
     subscan_url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
@@ -114,32 +114,33 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 # Filter out any None values from the hash_list
 hash_list = [h for h in hash_list if h is not None]
 
-df_hash = ((pd.DataFrame(hash_list)
-            .assign(generated_at=lambda x: pd.to_datetime(x['generated_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()))))
-            .rename(columns={"message":"MESSAGE",
-                            "generated_at":"TIME_OF_TRANSACTION",
-                            "hash":"TRANSACTION_HASH",
-                            "from":"PUBLISHER_ADDRESS",
-                            "to":"SENT_ADDRESS"},
-                    errors="raise"))
+df_hash = (pl.DataFrame(hash_list)
+            .with_columns(pl.col("generated_at").apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("generated_at"))
+            .select([
+                pl.col("message").alias("MESSAGE"),
+                pl.col("generated_at").alias("TIME_OF_TRANSACTION"),
+                pl.col("hash").alias("TRANSACTION_HASH"),
+                pl.col("from").alias("PUBLISHER_ADDRESS"),
+                pl.col("to").alias("SENT_ADDRESS")
+            ]))
 
-df = pd.merge(df_assets, df_hash, on='TRANSACTION_HASH', how='left')
+df = df_assets.join(df_hash, on="TRANSACTION_HASH", how="left")
 
 # Filter rows based on the MESSAGE column
-df = df[df['MESSAGE'] == 'Success']
+df = df.filter(pl.col("MESSAGE") == "Success")
 
-df = df[['MESSAGE',
-         'ASSET_ID',
-         'BLOCK_NUMBER',
-         'TIME_ASSET_CREATED',
-         'TIME_OF_TRANSACTION',
-         'TRAC_PRICE',
-         'EPOCHS_NUMBER',
-         'EPOCH_LENGTH-(DAYS)',
-         'PUBLISHER_ADDRESS',
-         'SENT_ADDRESS',
-         'TRANSACTION_HASH',
-         'BLOCK_HASH']]
+df = df.select(["MESSAGE",
+                "ASSET_ID",
+                "BLOCK_NUMBER",
+                "TIME_ASSET_CREATED",
+                "TIME_OF_TRANSACTION",
+                "TRAC_PRICE",
+                "EPOCHS_NUMBER",
+                "EPOCH_LENGTH-(DAYS)",
+                "PUBLISHER_ADDRESS",
+                "SENT_ADDRESS",
+                "TRANSACTION_HASH",
+                "BLOCK_HASH"])
 
 
 con = duckdb.connect(database='data/duckDB.db')
@@ -175,8 +176,7 @@ ON CONFLICT (TRANSACTION_HASH)  -- these are the primary or unique keys
 DO NOTHING;
 """)
 
-df_length = len(df)
-
+df_length = df.height
 print(f"Inserted {df_length} rows.")
 
 end_time = time.time()
