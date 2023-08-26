@@ -13,23 +13,25 @@ import pandas as pd
 import requests
 from web3 import Web3
 
-start_time = time.time()
+# service_agreement_v1 contract (where publishing starts)
+# 0x4B014C4B8DA1853243fBd9d404F10Db6Aa9FADFc
+# 0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F -> ServiceAgreementV1
+# 0xFfFFFFff00000000000000000000000000000001 -> TRAC
 
+# Evironment variables
 load_dotenv()
 SUBSCAN_KEY = os.getenv("subscan_key")
 MOTHERDUCK_KEY = os.getenv("motherDuck_token")
 ONFINALITY_KEY = os.getenv("onfinality_key")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
+
+start_time = time.time()
 # Connect to the Ethereum node using Websockets
 w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
-print("Latest Block:", w3.eth.block_number)
 latest_block = w3.eth.block_number
 last_block = (w3.eth.block_number) - 1
-
-print(last_block, latest_block)
-
 
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
@@ -38,7 +40,6 @@ with open('data/ServiceAgreementV1.json', 'r') as file:
 # Contract address and initialization
 contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
-
 
 # Fetch past ServiceAgreementV1Created events
 events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=last_block)
@@ -158,6 +159,10 @@ SELECT * FROM df
 ON CONFLICT (TRANSACTION_HASH)  -- these are the primary or unique keys
 DO NOTHING;
 """)
+
+df_length = len(df)
+
+print(f"Inserted {df_length} rows.")
 
 end_time = time.time()
 elapsed_time = end_time - start_time
