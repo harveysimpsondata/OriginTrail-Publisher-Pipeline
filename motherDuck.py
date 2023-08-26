@@ -1,18 +1,17 @@
-# Standard library
-import time
-import os
+# Standard library imports
 import datetime
-from concurrent.futures import ThreadPoolExecutor
 import json
-from web3 import Web3
+import os
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
-# Third-party libraries
+# Third-party imports
+from dotenv import load_dotenv
+import duckdb
 import pandas as pd
 import requests
-from dotenv import load_dotenv
-
-import duckdb
-
+from web3 import Web3
 
 start_time = time.time()
 
@@ -29,6 +28,9 @@ print("Latest Block:", w3.eth.block_number)
 latest_block = w3.eth.block_number
 last_block = (w3.eth.block_number) - 1
 
+print(last_block, latest_block)
+
+
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
     serviceAgreementABI = json.load(file)
@@ -39,28 +41,32 @@ contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=last_block)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=(latest_block), toBlock=latest_block)
 
-dicts_list = [dict(event) for event in events_list]
+if len(events_list) > 0:
+    processed_events = [{
+        'assetContract': item['args'].get('assetContract', ''),
+        'startTime': item['args'].get('startTime', ''),
+        'epochsNumber': item['args'].get('epochsNumber', ''),
+        'epochLength': item['args'].get('epochLength', ''),
+        'tokenAmount': item['args'].get('tokenAmount', ''),
+        'event': item.get('event', ''),
+        'tokenId': item['args'].get('tokenId', ''),
+        'transactionHash': item.get('transactionHash', '').hex() if item.get('transactionHash') else '',
+        'blockHash': item.get('blockHash', '').hex() if item.get('blockHash') else '',
+        'blockNumber': item.get('blockNumber', ''),
+        'address': item.get('address', '')
+    } for item in events_list]
+else:
+    print("No events found for the specified blocks.")
+    sys.exit()  # Exit the program
 
-# Flatten the 'args' dictionary and process HexBytes objects
-processed_data = []
-for item in dicts_list:
-    flattened = {**item['args'], **item}  # Merge dictionaries
-    flattened.pop('args')  # Remove the 'args' key
-
-    # Convert HexBytes to hexadecimal string representation
-    flattened['blockHash'] = flattened['blockHash'].hex()
-    flattened['transactionHash'] = flattened['transactionHash'].hex()
-
-    processed_data.append(flattened)
 
 # Create DataFrame
-df_assets = (pd.DataFrame(processed_data)
+df_assets = (pd.DataFrame(processed_events)
       .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
               epochLength=lambda x: x['epochLength'].astype(float) / 86400,
               startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
-      .drop(columns=['keyword', 'hashFunctionId', 'logIndex', 'transactionIndex'])
       .rename(columns={"assetContract":"asset_contract", "startTime": "TIME_ASSET_CREATED", "epochsNumber":"EPOCHS_NUMBER","epochLength":"EPOCH_LENGTH-(DAYS)","tokenAmount": "TRAC_PRICE", "event":"EVENT","tokenId": "ASSET_ID", "assetContract":"ASSET_CONTRACT", "transactionHash":"TRANSACTION_HASH", "blockHash":"BLOCK_HASH", "blockNumber":"BLOCK_NUMBER", "address":"EVENT_CONTRACT_ADDRESS"}, errors="raise"))
 
 
@@ -68,11 +74,8 @@ df_assets = (pd.DataFrame(processed_data)
 # Get all transaction hashes
 hashes = df_assets['TRANSACTION_HASH'].tolist()
 
-hash_list = []
-
-# Get all transaction hashes
-for hash in hashes:
-    url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
+def fetch_transaction_data(hash):
+    subscan_url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
     headers = {
         "Content-Type": "application/json",
         "X-API-Key": subscan_key
@@ -80,19 +83,19 @@ for hash in hashes:
     data = {
         "hash": hash
     }
-
-    response = requests.post(url, headers=headers, json=data).json()
-
-    if response.get("code") == 0:  # only proceed if the response code indicates success
+    response = requests.post(subscan_url, headers=headers, json=data).json()
+    if response.get("code") == 0:
         data = response["data"]
-        row = {
+        return {
             "message": response["message"],
             "generated_at": response["generated_at"],
             "hash": data["hash"],
             "from": data["from"],
             "to": data["to"]["address"]
         }
-        hash_list.append(row)
+
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    hash_list = list(executor.map(fetch_transaction_data, hashes))
 
 df_hash = ((pd.DataFrame(hash_list)
            .assign(generated_at=lambda x: pd.to_datetime(x['generated_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()))))
@@ -100,7 +103,7 @@ df_hash = ((pd.DataFrame(hash_list)
 
 df = pd.merge(df_assets, df_hash, on='TRANSACTION_HASH', how='left')
 
-df = df[['MESSAGE', 'ASSET_ID', 'BLOCK_NUMBER', 'TIME_ASSET_CREATED', 'TIME_OF_TRANSACTION', 'TRAC_PRICE', 'EPOCHS_NUMBER', 'EPOCH_LENGTH-(DAYS)', 'PUBLISHER_ADDRESS', 'SENT_ADDRESS', 'TRANSACTION_HASH', 'BLOCK_HASH']]
+df = df[['MESSAGE', 'ASSET_ID', 'BLOCK_NUMBER', 'TIME_ASSET_CREATED', 'TIME_OF_TRANSACTION', 'TRAC_PRICE', 'EPOCHS_NUMBER', 'EPOCH_LENGTH-(DAYS)','PUBLISHER_ADDRESS', 'SENT_ADDRESS', 'TRANSACTION_HASH', 'BLOCK_HASH']]
 
 
 con = duckdb.connect(database='data/duckDB.db')
