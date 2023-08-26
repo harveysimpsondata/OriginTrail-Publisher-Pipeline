@@ -16,13 +16,13 @@ from web3 import Web3
 start_time = time.time()
 
 load_dotenv()
-subscan_key = os.getenv("subscan_key")
-motherDuck_token = os.getenv("motherDuck_token")
-onfinality_key = os.getenv("onfinality_key")
+SUBSCAN_KEY = os.getenv("subscan_key")
+MOTHERDUCK_KEY = os.getenv("motherDuck_token")
+ONFINALITY_KEY = os.getenv("onfinality_key")
 MAX_WORKERS = 3  # adjust this based on your system's capabilities
 
 # Connect to the Ethereum node using Websockets
-w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={onfinality_key}'))
+w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
 print("Latest Block:", w3.eth.block_number)
 latest_block = w3.eth.block_number
@@ -41,7 +41,7 @@ contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=(latest_block), toBlock=latest_block)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block, toBlock=last_block)
 
 if len(events_list) > 0:
     processed_events = [{
@@ -67,7 +67,19 @@ df_assets = (pd.DataFrame(processed_events)
       .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
               epochLength=lambda x: x['epochLength'].astype(float) / 86400,
               startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
-      .rename(columns={"assetContract":"asset_contract", "startTime": "TIME_ASSET_CREATED", "epochsNumber":"EPOCHS_NUMBER","epochLength":"EPOCH_LENGTH-(DAYS)","tokenAmount": "TRAC_PRICE", "event":"EVENT","tokenId": "ASSET_ID", "assetContract":"ASSET_CONTRACT", "transactionHash":"TRANSACTION_HASH", "blockHash":"BLOCK_HASH", "blockNumber":"BLOCK_NUMBER", "address":"EVENT_CONTRACT_ADDRESS"}, errors="raise"))
+      .rename(columns={"assetContract":"asset_contract",
+                       "startTime": "TIME_ASSET_CREATED",
+                       "epochsNumber":"EPOCHS_NUMBER",
+                       "epochLength":"EPOCH_LENGTH-(DAYS)",
+                       "tokenAmount": "TRAC_PRICE",
+                       "event":"EVENT",
+                       "tokenId": "ASSET_ID",
+                       "assetContract":"ASSET_CONTRACT",
+                       "transactionHash":"TRANSACTION_HASH",
+                       "blockHash":"BLOCK_HASH",
+                       "blockNumber":"BLOCK_NUMBER",
+                       "address":"EVENT_CONTRACT_ADDRESS"},
+              errors="raise"))
 
 
 
@@ -78,7 +90,7 @@ def fetch_transaction_data(hash):
     subscan_url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": subscan_key
+        "X-API-Key": SUBSCAN_KEY
     }
     data = {
         "hash": hash
@@ -98,12 +110,28 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     hash_list = list(executor.map(fetch_transaction_data, hashes))
 
 df_hash = ((pd.DataFrame(hash_list)
-           .assign(generated_at=lambda x: pd.to_datetime(x['generated_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()))))
-           .rename(columns={"message":"MESSAGE","generated_at":"TIME_OF_TRANSACTION","hash":"TRANSACTION_HASH","from":"PUBLISHER_ADDRESS", "to":"SENT_ADDRESS"}, errors="raise"))
+            .assign(generated_at=lambda x: pd.to_datetime(x['generated_at'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()))))
+            .rename(columns={"message":"MESSAGE",
+                            "generated_at":"TIME_OF_TRANSACTION",
+                            "hash":"TRANSACTION_HASH",
+                            "from":"PUBLISHER_ADDRESS",
+                            "to":"SENT_ADDRESS"},
+                    errors="raise"))
 
 df = pd.merge(df_assets, df_hash, on='TRANSACTION_HASH', how='left')
 
-df = df[['MESSAGE', 'ASSET_ID', 'BLOCK_NUMBER', 'TIME_ASSET_CREATED', 'TIME_OF_TRANSACTION', 'TRAC_PRICE', 'EPOCHS_NUMBER', 'EPOCH_LENGTH-(DAYS)','PUBLISHER_ADDRESS', 'SENT_ADDRESS', 'TRANSACTION_HASH', 'BLOCK_HASH']]
+df = df[['MESSAGE',
+         'ASSET_ID',
+         'BLOCK_NUMBER',
+         'TIME_ASSET_CREATED',
+         'TIME_OF_TRANSACTION',
+         'TRAC_PRICE',
+         'EPOCHS_NUMBER',
+         'EPOCH_LENGTH-(DAYS)',
+         'PUBLISHER_ADDRESS',
+         'SENT_ADDRESS',
+         'TRANSACTION_HASH',
+         'BLOCK_HASH']]
 
 
 con = duckdb.connect(database='data/duckDB.db')
@@ -145,5 +173,10 @@ print(f"Total execution time: {elapsed_time:.2f} seconds")
 #     except Exception as e:
 #         pass
 #         # print(f"Error upserting data: {e}")
+
+
+
+
+
 
 
