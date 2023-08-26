@@ -23,7 +23,7 @@ load_dotenv()
 SUBSCAN_KEY = os.getenv("subscan_key")
 MOTHERDUCK_KEY = os.getenv("motherDuck_token")
 ONFINALITY_KEY = os.getenv("onfinality_key")
-MAX_WORKERS = 3  # adjust this based on your system's capabilities
+MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
 
 start_time = time.time()
@@ -42,7 +42,7 @@ contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_blocks, toBlock=latest_block)
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122367)
 
 if len(events_list) > 0:
     processed_events = [{
