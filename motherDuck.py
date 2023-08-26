@@ -107,6 +107,7 @@ def fetch_transaction_data(hash):
             "to": data["to"]["address"]
         }
 
+
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     hash_list = list(executor.map(fetch_transaction_data, hashes))
 
