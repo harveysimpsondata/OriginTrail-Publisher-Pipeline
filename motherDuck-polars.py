@@ -26,11 +26,30 @@ ONFINALITY_KEY = os.getenv("onfinality_key")
 MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
 start_time = time.time()
+
 # Connect to the Ethereum node using Websockets
 w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
+# Connect to database
+con = duckdb.connect(database='data/duckdb.db')
+
+database_block = con.execute("""
+    SELECT MAX(BLOCK_NUMBER) 
+    AS max_block 
+    FROM publishes
+""").fetchone()
+
+if database_block:
+    max_block_number = (database_block[0])-1
+    print(f"The maximum block number in the database is: {max_block_number}")
+else:
+    print("Couldn't retrieve the maximum block number.")
+
+print(f"The latest block number is: {w3.eth.block_number}")
+print(f"The last 500 blocks are: {w3.eth.block_number - 500}")
 latest_block = (w3.eth.block_number) - 1
-last_blocks = (w3.eth.block_number) - 10
+last_block_500 = (w3.eth.block_number) - 500
+
 
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
@@ -40,8 +59,16 @@ with open('data/ServiceAgreementV1.json', 'r') as file:
 contract_address = '0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F'
 contract = w3.eth.contract(address=contract_address, abi=serviceAgreementABI)
 
+if (max_block_number > last_block_500) and database_block:
+    # Fetch past ServiceAgreementV1Created events
+    events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=max_block_number, toBlock=latest_block)
+else:
+    # Fetch past ServiceAgreementV1Created events
+    events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block_500, toBlock=latest_block)
+
+
 # Fetch past ServiceAgreementV1Created events
-events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3122337, toBlock=3122387)
+#events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3121337, toBlock=3122337)
 
 if len(events_list) > 0:
     processed_events = [{
@@ -60,7 +87,6 @@ if len(events_list) > 0:
 else:
     print("No events found for the specified blocks.")
     sys.exit()  # Exit the program
-
 
 # Create DataFrame using polars
 df_assets = (
@@ -145,16 +171,6 @@ df = df.select(["MESSAGE",
                 "BLOCK_HASH"])
 
 
-con = duckdb.connect(database='data/duckDB.db')
-
-result = con.execute("SELECT MAX(BLOCK_NUMBER) AS max_block FROM publishes").fetchone()
-
-if result:
-    max_block_number = result[0]
-    print(f"The maximum block number in the database is: {max_block_number}")
-else:
-    print("Couldn't retrieve the maximum block number.")
-
 con.execute("""
     CREATE TABLE IF NOT EXISTS publishes 
     (MESSAGE VARCHAR(100), 
@@ -172,10 +188,10 @@ con.execute("""
 """)
 
 con.execute("""
-INSERT INTO publishes
-SELECT * FROM df
-ON CONFLICT (TRANSACTION_HASH)  -- these are the primary or unique keys
-DO NOTHING;
+    INSERT INTO publishes
+    SELECT * FROM df
+    ON CONFLICT (TRANSACTION_HASH)  -- this is the primary key
+    DO NOTHING;
 """)
 
 df_length = df.height
@@ -195,6 +211,8 @@ print(f"Total execution time: {elapsed_time:.2f} seconds")
 #     except Exception as e:
 #         pass
 #         # print(f"Error upserting data: {e}")
+
+
 
 
 
