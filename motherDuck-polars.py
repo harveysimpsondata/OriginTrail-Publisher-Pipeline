@@ -141,15 +141,17 @@ hash_list = [h for h in hash_list if h is not None]
 
 df_hash = (
     pl.DataFrame(hash_list)
-    .with_columns(pl.col("generated_at")
-                    .apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("generated_at"))
+    .with_columns(
+        pl.col("generated_at")
+        .apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("generated_at")
+    )
     .select([
         pl.col("message").alias("MESSAGE"),
         pl.col("generated_at").alias("TIME_OF_TRANSACTION"),
         pl.col("hash").alias("TRANSACTION_HASH"),
         pl.col("from").alias("PUBLISHER_ADDRESS"),
         pl.col("to").alias("SENT_ADDRESS")
-    ]))
+            ]))
 
 df = df_assets.join(df_hash, on="TRANSACTION_HASH", how="left")
 
