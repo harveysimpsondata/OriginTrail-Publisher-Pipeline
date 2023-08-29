@@ -65,22 +65,23 @@ else:
 
 # Create DataFrame
 df_assets = (pd.DataFrame(processed_events)
-      .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
-              epochLength=lambda x: x['epochLength'].astype(float) / 86400,
-              startTime=lambda x: pd.to_datetime(x['startTime'].apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
-      .rename(columns={"assetContract":"ASSET_CONTRACT",
-                       "startTime": "TIME_ASSET_CREATED",
-                       "epochsNumber":"EPOCHS_NUMBER",
-                       "epochLength":"EPOCH_LENGTH-(DAYS)",
-                       "tokenAmount": "TRAC_PRICE",
-                       "event":"EVENT",
-                       "tokenId": "ASSET_ID",
-                       "assetContract":"ASSET_CONTRACT",
-                       "transactionHash":"TRANSACTION_HASH",
-                       "blockHash":"BLOCK_HASH",
-                       "blockNumber":"BLOCK_NUMBER",
-                       "address":"EVENT_CONTRACT_ADDRESS"},
-              errors="raise"))
+             .assign(tokenAmount=lambda x: x['tokenAmount'].astype(float) / 1e18,
+                     epochLength=lambda x: x['epochLength'].astype(float) / 86400,
+                     startTime=lambda x: pd.to_datetime(x['startTime']
+                                                        .apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat())))
+             .rename(columns={"assetContract":"ASSET_CONTRACT",
+                              "startTime": "TIME_ASSET_CREATED",
+                              "epochsNumber":"EPOCHS_NUMBER",
+                              "epochLength":"EPOCH_LENGTH-(DAYS)",
+                              "tokenAmount": "TRAC_PRICE",
+                              "event":"EVENT",
+                              "tokenId": "ASSET_ID",
+                              "assetContract":"ASSET_CONTRACT",
+                              "transactionHash":"TRANSACTION_HASH",
+                              "blockHash":"BLOCK_HASH",
+                              "blockNumber":"BLOCK_NUMBER",
+                              "address":"EVENT_CONTRACT_ADDRESS"},
+                     errors="raise"))
 
 
 
