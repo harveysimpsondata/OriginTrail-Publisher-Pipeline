@@ -40,7 +40,7 @@ database_block = con.execute("""
 """).fetchone()
 
 if database_block:
-    max_block_number = (database_block[0])-1
+    max_block_number = (database_block[0]) - 1
     print(f"The maximum block number in the database is: {max_block_number}")
 else:
     print("Couldn't retrieve the maximum block number.")
@@ -49,7 +49,6 @@ print(f"The latest block number is: {w3.eth.block_number}")
 print(f"The last 500 blocks are: {w3.eth.block_number - 500}")
 latest_block = (w3.eth.block_number) - 1
 last_block_500 = (w3.eth.block_number) - 500
-
 
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
@@ -66,9 +65,8 @@ else:
     # Fetch past ServiceAgreementV1Created events
     events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block_500, toBlock=latest_block)
 
-
 # Fetch past ServiceAgreementV1Created events
-#events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3121337, toBlock=3122337)
+# events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3121337, toBlock=3122337)
 
 if len(events_list) > 0:
     processed_events = [{
@@ -110,10 +108,9 @@ df_assets = (
         pl.col("address").alias("EVENT_CONTRACT_ADDRESS")
     ]))
 
-
-
 # Get all transaction hashes
 hashes = df_assets['TRANSACTION_HASH'].to_list()
+
 
 def fetch_transaction_data(hash):
     subscan_url = "https://origintrail.api.subscan.io/api/scan/evm/transaction"
@@ -142,15 +139,17 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 # Filter out any None values from the hash_list
 hash_list = [h for h in hash_list if h is not None]
 
-df_hash = (pl.DataFrame(hash_list)
-            .with_columns(pl.col("generated_at").apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("generated_at"))
-            .select([
-                pl.col("message").alias("MESSAGE"),
-                pl.col("generated_at").alias("TIME_OF_TRANSACTION"),
-                pl.col("hash").alias("TRANSACTION_HASH"),
-                pl.col("from").alias("PUBLISHER_ADDRESS"),
-                pl.col("to").alias("SENT_ADDRESS")
-            ]))
+df_hash = (
+    pl.DataFrame(hash_list)
+    .with_columns(pl.col("generated_at")
+                    .apply(lambda y: datetime.datetime.utcfromtimestamp(y).isoformat()).alias("generated_at"))
+    .select([
+        pl.col("message").alias("MESSAGE"),
+        pl.col("generated_at").alias("TIME_OF_TRANSACTION"),
+        pl.col("hash").alias("TRANSACTION_HASH"),
+        pl.col("from").alias("PUBLISHER_ADDRESS"),
+        pl.col("to").alias("SENT_ADDRESS")
+    ]))
 
 df = df_assets.join(df_hash, on="TRANSACTION_HASH", how="left")
 
@@ -200,7 +199,6 @@ end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"Total execution time: {elapsed_time:.2f} seconds")
 
-
 # with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
 #     try:
 #
@@ -210,12 +208,3 @@ print(f"Total execution time: {elapsed_time:.2f} seconds")
 #     except Exception as e:
 #         pass
 #         # print(f"Error upserting data: {e}")
-
-
-
-
-
-
-
-
-
