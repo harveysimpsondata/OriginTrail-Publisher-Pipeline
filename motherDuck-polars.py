@@ -170,7 +170,6 @@ df = df.select(["MESSAGE",
                 "TRANSACTION_HASH",
                 "BLOCK_HASH"])
 
-
 con.execute("""
     CREATE TABLE IF NOT EXISTS publishes 
     (MESSAGE VARCHAR(100), 
