@@ -18,7 +18,7 @@ from web3 import Web3
 # 0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F -> ServiceAgreementV1
 # 0xFfFFFFff00000000000000000000000000000001 -> TRAC
 
-# Evironment variables
+# Environment variables
 load_dotenv()
 SUBSCAN_KEY = os.getenv("subscan_key")
 MOTHERDUCK_KEY = os.getenv("motherDuck_token")
