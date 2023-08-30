@@ -43,12 +43,13 @@ if database_block:
     max_block_number = (database_block[0]) - 1
     print(f"The maximum block number in the database is: {max_block_number}")
 else:
+    max_block_number = 0
     print("Couldn't retrieve the maximum block number.")
 
 print(f"The latest block number is: {w3.eth.block_number}")
 print(f"The last 500 blocks are: {w3.eth.block_number - 500}")
-latest_block = (w3.eth.block_number) - 1
-last_block_500 = (w3.eth.block_number) - 500
+latest_block = w3.eth.block_number - 1
+last_block_500 = w3.eth.block_number - 500
 
 # Load ABI from json file
 with open('data/ServiceAgreementV1.json', 'r') as file:
