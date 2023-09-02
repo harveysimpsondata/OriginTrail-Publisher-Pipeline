@@ -20,9 +20,9 @@ from web3 import Web3
 
 # Evironment variables
 load_dotenv()
-SUBSCAN_KEY = os.getenv("subscan_key")
-MOTHERDUCK_KEY = os.getenv("motherDuck_token")
-ONFINALITY_KEY = os.getenv("onfinality_key")
+SUBSCAN_KEY = os.getenv("SUBSCAN_KEY")
+MOTHERDUCK_KEY = os.getenv("MOTHERDUCK_TOKEN")
+ONFINALITY_KEY = os.getenv("ONFINALITY_KEY")
 MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
 

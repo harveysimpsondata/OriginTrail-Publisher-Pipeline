@@ -20,9 +20,9 @@ from web3 import Web3
 
 # Environment variables
 load_dotenv()
-SUBSCAN_KEY = os.getenv("subscan_key")
-MOTHERDUCK_KEY = os.getenv("motherDuck_token")
-ONFINALITY_KEY = os.getenv("onfinality_key")
+SUBSCAN_KEY = os.getenv("SUBSCAN_KEY")
+MOTHERDUCK_KEY = os.getenv("MOTHERDUCK_TOKEN")
+ONFINALITY_KEY = os.getenv("ONFINALITY_KEY")
 MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
 start_time = time.time()
@@ -66,8 +66,8 @@ else:
     # Fetch past ServiceAgreementV1Created events
     events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block_500, toBlock=latest_block)
 
-# Fetch past ServiceAgreementV1Created events
-# events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=3121337, toBlock=3122337)
+# Use to test the script Comment out when running in production
+events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block_500+497, toBlock=latest_block)
 
 if len(events_list) > 0:
     processed_events = [{
