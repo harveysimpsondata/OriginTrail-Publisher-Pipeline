@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+setup.cfg
+setup.py
+publisher_dag/__init__.py
+publisher_dag/assets.py
+publisher_dag.egg-info/PKG-INFO
+publisher_dag.egg-info/SOURCES.txt
+publisher_dag.egg-info/dependency_links.txt
+publisher_dag.egg-info/requires.txt
+publisher_dag.egg-info/top_level.txt

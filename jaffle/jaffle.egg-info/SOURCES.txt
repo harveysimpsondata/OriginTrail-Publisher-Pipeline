@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+setup.cfg
+setup.py
+jaffle/__init__.py
+jaffle/assets.py
+jaffle.egg-info/PKG-INFO
+jaffle.egg-info/SOURCES.txt
+jaffle.egg-info/dependency_links.txt
+jaffle.egg-info/requires.txt
+jaffle.egg-info/top_level.txt

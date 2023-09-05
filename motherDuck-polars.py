@@ -39,7 +39,7 @@ database_block = con.execute("""
     FROM publishes
 """).fetchone()
 
-if database_block:
+if database_block[0] != None:
     max_block_number = (database_block[0]) - 1
     print(f"The maximum block number in the database is: {max_block_number}")
 else:
