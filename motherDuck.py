@@ -147,7 +147,7 @@ con = duckdb.connect(database='data/duckDB.db')
 
 result = con.execute("SELECT MAX(BLOCK_NUMBER) AS max_block FROM publishes").fetchone()
 
-if result:
+if result[0] != None:
     max_block_number = result[0]
     print(f"The maximum block number in the database is: {max_block_number}")
 else:
