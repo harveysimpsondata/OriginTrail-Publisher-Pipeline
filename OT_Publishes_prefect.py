@@ -14,13 +14,13 @@ import requests
 from web3 import Web3
 from prefect import flow, task
 
-@task(log_prints=True, retries=3)
-def extract_events(API_KEY):
+@task(log_prints=True, retries=3, tags=['exatract-events'])
+def extract_events(con, ONFINALITY_KEY):
     # Connect to the Ethereum node using Websockets
     w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
-    # Connect to database
-    con = duckdb.connect(database='data/duckdb.db')
+
+
 
     database_block = con.execute("""
         SELECT MAX(BLOCK_NUMBER) 
@@ -89,7 +89,7 @@ def extract_events(API_KEY):
 
     return processed_events
 
-@task(log_prints=True, retries=3)
+@task(log_prints=True, retries=3, tags=['create-dataframe'])
 def create_dataframe(processed_events, SUBSCAN_KEY, MAX_WORKERS):
     # Create DataFrame using polars
     df_assets = (
@@ -177,7 +177,7 @@ def create_dataframe(processed_events, SUBSCAN_KEY, MAX_WORKERS):
     return df
 
 
-@task(log_prints=True, retries=3)
+@task(log_prints=True, retries=3, tags=['load-to-motherduck'])
 def load_to_motherduck(df, con):
 
     con.execute("""
@@ -205,5 +205,24 @@ def load_to_motherduck(df, con):
 
     df_length = df.height
     print(f"Inserted {df_length} rows.")
+
+@flow(name="OriginTrail Pipeline")
+def ot_flow():
+    load_dotenv()
+
+    SUBSCAN_KEY = os.getenv("SUBSCAN_KEY")
+    ONFINALITY_KEY = os.getenv("ONFINALITY_KEY")
+    MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
+    MAX_WORKERS = 2  # adjust this based on your system's capabilities
+
+    #with duckdb.connect(f'md:origintrail?motherduck_token={MOTHERDUCK_TOKEN}&saas_mode=true') as con:
+    with duckdb.connect(database='data/duckDB.db') as con:
+        event_list = extract_events(con, ONFINALITY_KEY)
+        df = create_dataframe(event_list, SUBSCAN_KEY, MAX_WORKERS)
+        motherduck = load_to_motherduck(df, con)
+
+
+if __name__ == "__main__":
+    ot_flow()
 
 
