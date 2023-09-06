@@ -12,29 +12,23 @@ import duckdb
 import polars as pl
 import requests
 from web3 import Web3
-from dagster import asset
-from jaffle.duckpond import SQL
+from prefect import flow, task
 
-# service_agreement_v1 contract (where publishing starts)
-# 0x4B014C4B8DA1853243fBd9d404F10Db6Aa9FADFc
-# 0xB20F6F3B9176D4B284bA26b80833ff5bFe6db28F -> ServiceAgreementV1
-# 0xFfFFFFff00000000000000000000000000000001 -> TRAC
-
-
-
-@asset
-def load_data(ONFINALITY_KEY, SUBSCAN_KEY, con) -> list:
+@task(log_prints=True, retries=3)
+def extract_events(API_KEY):
     # Connect to the Ethereum node using Websockets
     w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
 
-    # Get the latest block number from the database
+    # Connect to database
+    con = duckdb.connect(database='data/duckdb.db')
+
     database_block = con.execute("""
         SELECT MAX(BLOCK_NUMBER) 
         AS max_block 
         FROM publishes
     """).fetchone()
 
-    if database_block:
+    if database_block[0] != None:
         max_block_number = (database_block[0]) - 1
         print(f"The maximum block number in the database is: {max_block_number}")
     else:
@@ -56,12 +50,24 @@ def load_data(ONFINALITY_KEY, SUBSCAN_KEY, con) -> list:
 
     if (max_block_number > last_block_500) and database_block:
         # Fetch past ServiceAgreementV1Created events
-        events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=max_block_number,
-                                                                         toBlock=latest_block)
+        events_list = contract.events.ServiceAgreementV1Created.get_logs(
+            fromBlock=max_block_number,
+            toBlock=latest_block
+        )
+
     else:
         # Fetch past ServiceAgreementV1Created events
-        events_list = contract.events.ServiceAgreementV1Created.get_logs(fromBlock=last_block_500,
-                                                                         toBlock=latest_block)
+        events_list = contract.events.ServiceAgreementV1Created.get_logs(
+            fromBlock=last_block_500,
+            toBlock=latest_block
+        )
+
+    # TEST!!
+    # Use to test the script Comment out when running in production
+    events_list = contract.events.ServiceAgreementV1Created.get_logs(
+        fromBlock=last_block_500 + 497,
+        toBlock=latest_block
+    )
 
     if len(events_list) > 0:
         processed_events = [{
@@ -83,9 +89,8 @@ def load_data(ONFINALITY_KEY, SUBSCAN_KEY, con) -> list:
 
     return processed_events
 
-
-@asset(deps=[load_data])
-def create_dataframe(processed_events) -> pl.DataFrame:
+@task(log_prints=True, retries=3)
+def create_dataframe(processed_events, SUBSCAN_KEY, MAX_WORKERS):
     # Create DataFrame using polars
     df_assets = (
         pl.DataFrame(processed_events)
@@ -172,10 +177,9 @@ def create_dataframe(processed_events) -> pl.DataFrame:
     return df
 
 
-@asset(deps=[create_dataframe])
-def load_to_motherDuck(df, con) -> None:
+@task(log_prints=True, retries=3)
+def load_to_motherduck(df, con):
 
-    df=df
     con.execute("""
         CREATE TABLE IF NOT EXISTS publishes 
         (MESSAGE VARCHAR(100), 
@@ -199,40 +203,7 @@ def load_to_motherDuck(df, con) -> None:
         DO NOTHING;
     """)
 
-
-if __name__ == "__main__":
-
-    load_dotenv()
-    SUBSCAN_KEY = os.getenv("SUBSCAN_KEY")
-    MOTHERDUCK_KEY = os.getenv("MOTHERDUCK_TOKEN")
-    ONFINALITY_KEY = os.getenv("ONFINALITY_KEY")
-    MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
-    MAX_WORKERS = 2  # adjust this based on your system's capabilities
-
-    start_time = time.time()
-
-    with duckdb.connect(database='data/duckdb.db') as con:
-
-        # Load data
-        processed_events = load_data(ONFINALITY_KEY, SUBSCAN_KEY, MAX_WORKERS, con)
-
-        # Create DataFrame
-        df = create_dataframe(processed_events)
-
-        # Load data to motherDuck
-        load_to_motherDuck(df, con)
-
-        print(f"Time elapsed: {time.time() - start_time} seconds.")
+    df_length = df.height
+    print(f"Inserted {df_length} rows.")
 
 
-
-
-# with duckdb.connect(f'md:origintrail?motherduck_token={motherDuck_token}&saas_mode=true') as conn:
-#     try:
-#
-#         pass
-#         # conn.execute(upsert_statement)
-#         # print(f"Inserted {len(postgres_data)} rows.")
-#     except Exception as e:
-#         pass
-#         # print(f"Error upserting data: {e}")
