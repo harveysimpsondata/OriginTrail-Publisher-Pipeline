@@ -1,23 +1,39 @@
 # Standard library imports
 import datetime
-import json
 import os
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 # Third-party imports
-from dotenv import load_dotenv
 import duckdb
+from dotenv import load_dotenv
 import polars as pl
 import requests
-from web3 import Web3
 from prefect import flow, task
+from prefect.task_runners import ConcurrentTaskRunner
+from web3 import Web3
+
 
 @task(log_prints=True, retries=3, retry_delay_seconds=5, tags=['exatract-events'])
 def extract_events(con, serviceAgreementABI, ONFINALITY_KEY):
     # Connect to the Ethereum node using Websockets
     w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
+
+    con.execute("""
+            CREATE TABLE IF NOT EXISTS publishes 
+            (MESSAGE VARCHAR(100), 
+            ASSET_ID VARCHAR(100), 
+            BLOCK_NUMBER INTEGER, 
+            TIME_ASSET_CREATED TIMESTAMP, 
+            TIME_OF_TRANSACTION TIMESTAMP, 
+            TRAC_PRICE FLOAT, 
+            EPOCHS_NUMBER INTEGER, 
+            EPOCH_LENGTH_DAYS FLOAT, 
+            PUBLISHER_ADDRESS VARCHAR(100), 
+            SENT_ADDRESS VARCHAR(100), 
+            TRANSACTION_HASH VARCHAR(100) PRIMARY KEY, 
+            BLOCK_HASH VARCHAR(100))
+        """)
 
     database_block = con.execute("""
         SELECT MAX(BLOCK_NUMBER) 
@@ -174,22 +190,6 @@ def create_dataframe(processed_events, SUBSCAN_KEY, MAX_WORKERS):
 def load_to_motherduck(df, con):
 
     con.execute("""
-        CREATE TABLE IF NOT EXISTS publishes 
-        (MESSAGE VARCHAR(100), 
-        ASSET_ID VARCHAR(100), 
-        BLOCK_NUMBER INTEGER, 
-        TIME_ASSET_CREATED TIMESTAMP, 
-        TIME_OF_TRANSACTION TIMESTAMP, 
-        TRAC_PRICE FLOAT, 
-        EPOCHS_NUMBER INTEGER, 
-        EPOCH_LENGTH_DAYS FLOAT, 
-        PUBLISHER_ADDRESS VARCHAR(100), 
-        SENT_ADDRESS VARCHAR(100), 
-        TRANSACTION_HASH VARCHAR(100) PRIMARY KEY, 
-        BLOCK_HASH VARCHAR(100))
-    """)
-
-    con.execute("""
         INSERT INTO publishes
         SELECT * FROM df
         ON CONFLICT (TRANSACTION_HASH)  -- this is the primary key
@@ -199,7 +199,8 @@ def load_to_motherduck(df, con):
     df_length = df.height
     print(f"Inserted {df_length} rows.")
 
-@flow(name="OriginTrail Pipeline")
+
+@flow(name="OriginTrail Pipeline", task_runner=ConcurrentTaskRunner)
 def ot_flow():
 
     load_dotenv()
