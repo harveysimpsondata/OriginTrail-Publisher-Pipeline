@@ -14,7 +14,7 @@ import requests
 from web3 import Web3
 from prefect import flow, task
 
-@task(log_prints=True, retries=3, tags=['exatract-events'])
+@task(log_prints=True, retries=3, retry_delay_seconds=5, tags=['exatract-events'])
 def extract_events(con, ONFINALITY_KEY):
     # Connect to the Ethereum node using Websockets
     w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
@@ -89,7 +89,7 @@ def extract_events(con, ONFINALITY_KEY):
 
     return processed_events
 
-@task(log_prints=True, retries=3, tags=['create-dataframe'])
+@task(log_prints=True, retries=3, retry_delay_seconds=5, tags=['create-dataframe'])
 def create_dataframe(processed_events, SUBSCAN_KEY, MAX_WORKERS):
     # Create DataFrame using polars
     df_assets = (
@@ -206,7 +206,7 @@ def load_to_motherduck(df, con):
     df_length = df.height
     print(f"Inserted {df_length} rows.")
 
-@flow(name="OriginTrail Pipeline")
+@flow(name="OriginTrail Pipeline", skip_on_upstream_skip=True)
 def ot_flow():
 
     load_dotenv()
