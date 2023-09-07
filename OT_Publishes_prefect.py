@@ -955,8 +955,8 @@ def ot_flow():
 ]
 
 
-    #with duckdb.connect(f'md:origintrail?motherduck_token={MOTHERDUCK_TOKEN}&saas_mode=true') as con:
-    with duckdb.connect(database='data/duckDB.db') as con:
+    with duckdb.connect(f'md:origintrail?motherduck_token={MOTHERDUCK_TOKEN}&saas_mode=true') as con:
+    #with duckdb.connect(database='data/duckDB.db') as con:
         event_list = extract_events(con, serviceAgreementABI, ONFINALITY_KEY)
         df = create_dataframe(event_list, SUBSCAN_KEY, MAX_WORKERS)
         motherduck = load_to_motherduck(df, con)
