@@ -14,7 +14,7 @@ from prefect.task_runners import ConcurrentTaskRunner
 from web3 import Web3
 
 
-@task(log_prints=True, retries=3, retry_delay_seconds=5, tags=['exatract-events'])
+@task(log_prints=True, retries=3, retry_delay_seconds=5, tags=['extract-events'])
 def extract_events(con, serviceAgreementABI, ONFINALITY_KEY):
     # Connect to the Ethereum node using Websockets
     w3 = Web3(Web3.HTTPProvider(f'https://origintrail.api.onfinality.io/rpc?apikey={ONFINALITY_KEY}'))
@@ -74,7 +74,7 @@ def extract_events(con, serviceAgreementABI, ONFINALITY_KEY):
     # TEST!!
     # Use to test the script Comment out when running in production
     events_list = contract.events.ServiceAgreementV1Created.get_logs(
-        fromBlock=last_block_500 + 497,
+        fromBlock=last_block_500 + 480,
         toBlock=latest_block
     )
 
@@ -93,8 +93,7 @@ def extract_events(con, serviceAgreementABI, ONFINALITY_KEY):
             'address': item.get('address', '')
         } for item in events_list]
     else:
-        print("No events found for the specified block(s).")
-        sys.exit()  # Exit the program
+        raise ValueError("No events found for the specified blocks.")
 
     return processed_events
 
@@ -189,7 +188,9 @@ def create_dataframe(processed_events, SUBSCAN_KEY, MAX_WORKERS):
 @task(log_prints=True, retries=3, tags=['load-to-motherduck'])
 def load_to_motherduck(df, con):
 
-    con.execute("""
+    con.register('df', df)
+
+    con.sql("""
         INSERT INTO publishes
         SELECT * FROM df
         ON CONFLICT (TRANSACTION_HASH)  -- this is the primary key
@@ -960,7 +961,17 @@ def ot_flow():
     #with duckdb.connect(database='data/duckDB.db') as con:
         event_list = extract_events(con, serviceAgreementABI, ONFINALITY_KEY)
         df = create_dataframe(event_list, SUBSCAN_KEY, MAX_WORKERS)
-        motherduck = load_to_motherduck(df, con)
+        load_to_motherduck(df, con)
+
+    # con.register('df', df)
+    # con.execute("""
+    #         INSERT INTO publishes
+    #         SELECT * FROM df
+    #         ON CONFLICT (TRANSACTION_HASH)  -- this is the primary key
+    #         DO NOTHING;
+    #     """)
+
+
 
 
 if __name__ == "__main__":
