@@ -215,8 +215,8 @@ def ot_flow():
     MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
     MAX_WORKERS = 2  # adjust this based on your system's capabilities
 
-    #with duckdb.connect(f'md:origintrail?motherduck_token={MOTHERDUCK_TOKEN}&saas_mode=true') as con:
-    with duckdb.connect(database='data/duckDB.db') as con:
+    with duckdb.connect(f'md:origintrail?motherduck_token={MOTHERDUCK_TOKEN}&saas_mode=true') as con:
+    #with duckdb.connect(database='data/duckDB.db') as con:
         event_list = extract_events(con, ONFINALITY_KEY)
         df = create_dataframe(event_list, SUBSCAN_KEY, MAX_WORKERS)
         motherduck = load_to_motherduck(df, con)
