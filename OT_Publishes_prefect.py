@@ -36,7 +36,7 @@ def extract_events(con, ONFINALITY_KEY):
         print("Couldn't retrieve the maximum block number.")
 
     print(f"The latest block number is: {w3.eth.block_number}")
-    print(f"The last 500 blocks are: {w3.eth.block_number - 500}")
+    print(f"The last database block number is: {database_block}")
     latest_block = w3.eth.block_number - 1
     last_block_500 = w3.eth.block_number - 500
 
@@ -208,8 +208,8 @@ def load_to_motherduck(df, con):
 
 @flow(name="OriginTrail Pipeline")
 def ot_flow():
-    load_dotenv()
 
+    load_dotenv()
     SUBSCAN_KEY = os.getenv("SUBSCAN_KEY")
     ONFINALITY_KEY = os.getenv("ONFINALITY_KEY")
     MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
